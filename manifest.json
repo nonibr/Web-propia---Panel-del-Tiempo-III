@@ -1,0 +1,24 @@
+{
+  "name": "Panel de Tiempo — Brian Tracy",
+  "short_name": "Panel Tracy",
+  "description": "Gestión del tiempo con el método ABCDE de Brian Tracy",
+  "start_url": "./Web propia - Panel del Tiempo III.html",
+  "display": "standalone",
+  "background_color": "#0d0d0f",
+  "theme_color": "#141417",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

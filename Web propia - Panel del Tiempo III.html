@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- PWA: manifest e iconos -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#141417">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Panel Tracy">
+
+<!-- PWA: registro del Service Worker -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('[SW] Registrado:', reg.scope))
+        .catch(err => console.log('[SW] Error:', err));
+    });
+  }
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de Tiempo — Brian Tracy</title>
+<style>
+:root{--bg0:#0d0d0f;--bg1:#141417;--bg2:#1c1c21;--bg3:#252529;--br:#2e2e34;--br2:#3a3a42;--tx:#e8e8ec;--tx2:#9898a8;--tx3:#5a5a6a;--ac2:#26215c;--ac3:#afa9ec;--rad:10px;--rad2:8px}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+html,body{background:#0d0d0f;color:#e8e8ec;min-height:100vh}
+body{padding:0}
+.app{background:#0d0d0f;color:#e8e8ec;width:100%;min-height:100vh}
+.topbar{background:#141417;border-bottom:1px solid #2e2e34;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.topbar-title{font-size:22px;font-weight:600;color:#e8e8ec}
+.topbar-sub{font-size:16px;color:#5a5a6a;margin-top:3px}
+.save-ind{font-size:15px;color:#3a9a50;display:none;align-items:center;gap:5px}
+.ring-wrap{width:56px;height:56px;position:relative;flex-shrink:0}
+.ring-wrap svg{transform:rotate(-90deg);display:block}
+.ring-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#afa9ec}
+.nav{display:flex;background:#141417;border-bottom:1px solid #2e2e34;padding:0 14px;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{height:0}
+.ntab{font-size:17px;font-weight:500;padding:13px 18px;border:none;background:transparent;color:#5a5a6a;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.ntab:hover{color:#9898a8}.ntab.on{color:#e8e8ec;border-bottom-color:#afa9ec}
+.ntab.ms{color:#4da3ff}.ntab.ms.on{border-bottom-color:#0078d4;color:#6fb8ff}
+.pane{padding:20px 28px;display:none;background:#0d0d0f}.pane.on{display:block}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+.card{background:#141417;border:1px solid #2e2e34;border-radius:var(--rad);padding:18px;margin-bottom:14px}
+.card-head{font-size:15px;font-weight:600;color:#5a5a6a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;display:flex;align-items:center;gap:9px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.pill{display:inline-flex;align-items:center;font-size:15px;font-weight:700;padding:3px 11px;border-radius:99px}
+.pa{background:#3a1a10;color:#f07050;border:1px solid #e05c3a}.pb{background:#3a2800;color:#f0b040;border:1px solid #e09a20}
+.pc{background:#0f2a18;color:#50c070;border:1px solid #3a9a50}.pd{background:#0f1e3a;color:#5090f0;border:1px solid #3a7ae0}
+.pe{background:#1a1a22;color:#8888a0;border:1px solid #5a5a6a}
+/* SEARCH BAR */
+.search-bar{display:flex;gap:10px;margin-bottom:16px;align-items:center}
+.global-search{flex:1;background:#1c1c21;border:1px solid #3a3a42;border-radius:99px;color:#e8e8ec;font-size:17px;padding:10px 18px;outline:none;transition:border .15s}
+.global-search:focus{border-color:#7f77dd}
+.global-search::placeholder{color:#5a5a6a}
+.search-results{background:#141417;border:1px solid #2e2e34;border-radius:var(--rad);padding:14px;margin-bottom:16px;display:none}
+.search-result-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1c1c21}
+.search-result-row:last-child{border-bottom:none}
+.sr-pill{font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;flex-shrink:0}
+.sr-text{flex:1;font-size:17px;color:#e8e8ec;cursor:pointer;line-height:1.35}
+.sr-text.done{text-decoration:line-through;color:#5a5a6a}
+.sr-ck{width:18px;height:18px;border-radius:5px;cursor:pointer;flex-shrink:0}
+.sr-edit{background:none;border:none;cursor:pointer;font-size:16px;color:#5a5a6a;padding:3px 5px;border-radius:5px}
+.sr-edit:hover{background:#252529;color:#afa9ec}
+/* TASKS */
+.trow{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid #1c1c21;cursor:default;transition:background .1s,opacity .15s}
+.trow:last-child{border-bottom:none}
+.trow.dragging{opacity:.35}
+.trow.drag-over{border-top:2px solid #7f77dd;padding-top:9px}
+.drag-handle{color:#3a3a42;cursor:grab;font-size:18px;padding:2px 4px;flex-shrink:0;margin-top:2px;line-height:1;user-select:none}
+.drag-handle:hover{color:#5a5a6a}
+.drag-handle:active{cursor:grabbing}
+.ck{width:20px;height:20px;border-radius:5px;cursor:pointer;flex-shrink:0;margin-top:3px}
+.task-body{flex:1;min-width:0}
+.ttx{font-size:18px;color:#e8e8ec;line-height:1.4;cursor:pointer;word-break:break-word}
+.ttx.done{text-decoration:line-through;color:#5a5a6a}
+.tsrc{font-size:13px;color:#4da3ff;display:block;margin-top:2px}
+.task-hint{font-size:12px;color:#3a3a42;margin-top:2px;display:none}
+.trow:hover .task-hint{display:block}
+.task-edit-inp{width:100%;background:#1c1c21;border:1.5px solid #7f77dd;border-radius:6px;color:#e8e8ec;font-size:18px;padding:8px 12px;outline:none;line-height:1.4;resize:none;font-family:inherit}
+.task-edit-inp:focus{border-color:#afa9ec}
+.edit-actions{display:flex;gap:7px;margin-top:7px;flex-wrap:wrap}
+.edit-ok{border-radius:6px;font-size:15px;font-weight:600;padding:7px 15px;cursor:pointer;border:1px solid #3a9a50;background:#0f2a18;color:#50c070}
+.edit-ok:hover{background:#1a3a24}
+.edit-cancel{border-radius:6px;font-size:15px;font-weight:600;padding:7px 15px;cursor:pointer;border:1px solid #3a3a42;background:#1c1c21;color:#9898a8}
+.edit-cancel:hover{background:#252529}
+.move-sel{border-radius:6px;font-size:14px;padding:7px 9px;cursor:pointer;border:1px solid #3a3a42;background:#1c1c21;color:#9898a8;outline:none;margin-left:auto}
+.task-actions{display:flex;gap:4px;flex-shrink:0;margin-top:2px}
+.abtn{background:none;border:none;cursor:pointer;font-size:17px;padding:4px 5px;line-height:1;border-radius:5px;color:#5a5a6a;transition:all .12s}
+.abtn:hover{background:#252529}.abtn.edit:hover{color:#afa9ec}.abtn.del:hover{color:#f07050}.abtn.done-btn:hover{color:#50c070}
+.addrow{display:flex;gap:9px;margin-top:13px;flex-wrap:wrap}
+.inp{flex:1;min-width:130px;background:#1c1c21;border:1px solid #3a3a42;border-radius:var(--rad2);color:#e8e8ec;font-size:18px;padding:12px 15px;outline:none;transition:border .15s}
+.inp:focus{border-color:#7f77dd}.inp::placeholder{color:#5a5a6a}
+.btn{border-radius:var(--rad2);font-size:16px;font-weight:600;padding:11px 20px;cursor:pointer;border:1px solid;transition:all .15s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-a{background:#3a1a10;border-color:#e05c3a;color:#f07050}.btn-a:hover{background:#4a2010}
+.btn-b{background:#3a2800;border-color:#e09a20;color:#f0b040}.btn-b:hover{background:#4a3400}
+.btn-c{background:#0f2a18;border-color:#3a9a50;color:#50c070}.btn-c:hover{background:#1a3a24}
+.btn-n{background:#1c1c21;border-color:#3a3a42;color:#9898a8}.btn-n:hover{background:#252529;color:#e8e8ec}
+.btn-ms{background:#001a3a;border-color:#0078d4;color:#4da3ff}.btn-ms:hover{background:#002a50}
+.btn-ms:disabled{opacity:.4;cursor:not-allowed}
+.btn-export{background:#26215c;border-color:#7f77dd;color:#afa9ec}.btn-export:hover{background:#32285a}
+.btn-import{background:#1c1c21;border-color:#3a9a50;color:#50c070}.btn-import:hover{background:#0f2a18}
+.btn-danger{background:#2a0f0f;border-color:#c03030;color:#f09595}.btn-danger:hover{background:#3a1515}
+.sel{background:#1c1c21;border:1px solid #3a3a42;border-radius:var(--rad2);color:#e8e8ec;font-size:16px;padding:11px 10px;outline:none}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:13px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:11px;margin-top:13px}
+.metric{background:#1c1c21;border-radius:var(--rad2);padding:14px 16px;border:1px solid #2e2e34}
+.mlabel{font-size:13px;color:#5a5a6a;margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+.mval{font-size:26px;font-weight:600;color:#e8e8ec}
+.bbar{height:4px;background:#252529;border-radius:2px;margin-top:7px}.bfill{height:4px;border-radius:2px;transition:width .35s}
+.hint{font-size:15px;color:#9898a8;line-height:1.55;margin-bottom:13px;padding:10px 14px;background:#141417;border-radius:var(--rad2);border-left:2px solid #7f77dd}
+.hint strong{color:#afa9ec}
+.err{background:#2a0f0f;border:1px solid #c04040;border-radius:var(--rad2);padding:12px 16px;color:#f09595;font-size:16px;margin-bottom:13px;display:none}
+.toast{background:#0f2a18;border:1px solid #3a9a50;border-radius:var(--rad2);padding:10px 16px;color:#50c070;font-size:16px;font-weight:500;margin-bottom:11px;display:none;animation:fi .2s}
+@keyframes fi{from{opacity:0;transform:translateY(-3px)}to{opacity:1}}
+.storage-bar{display:flex;align-items:center;gap:10px;background:#141417;border:1px solid #2e2e34;border-radius:var(--rad2);padding:11px 15px;margin-bottom:14px;font-size:15px;color:#5a5a6a;flex-wrap:wrap}
+.storage-bar strong{color:#afa9ec}
+.sdot{width:8px;height:8px;border-radius:50%;background:#3a9a50;flex-shrink:0;box-shadow:0 0 5px #3a9a5088}
+.last-saved{font-size:13px;color:#5a5a6a}
+.clear-btn{margin-left:auto;background:none;border:1px solid #3a3a42;border-radius:6px;color:#5a5a6a;font-size:13px;padding:5px 12px;cursor:pointer}
+.clear-btn:hover{border-color:#c03030;color:#f09595}
+/* HABITS */
+.hrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #1c1c21}
+.hrow:last-child{border-bottom:none}
+.hlabel{font-size:17px;color:#9898a8;flex:1;line-height:1.4}
+.hrow.chk .hlabel{color:#50c070}
+.hab-drag{color:#3a3a42;cursor:grab;font-size:16px;flex-shrink:0;user-select:none}
+.hab-drag:hover{color:#5a5a6a}
+.hab-edit-inp{flex:1;background:#1c1c21;border:1.5px solid #7f77dd;border-radius:6px;color:#e8e8ec;font-size:16px;padding:6px 11px;outline:none;font-family:inherit}
+.hab-actions{display:flex;gap:4px;flex-shrink:0}
+.habtn{background:none;border:none;cursor:pointer;font-size:16px;padding:3px 5px;line-height:1;border-radius:5px;color:#5a5a6a;transition:all .12s}
+.habtn:hover{background:#252529}.habtn.hedit:hover{color:#afa9ec}.habtn.hdel:hover{color:#f07050}
+.add-hab-row{display:flex;gap:8px;margin-top:13px;padding-top:13px;border-top:1px solid #2e2e34}
+/* STREAKS */
+.wgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
+.mgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;text-align:center}
+.ygrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;text-align:center}
+.dlabel{font-size:12px;color:#5a5a6a;margin-bottom:4px;font-weight:500}
+.sdot-day{height:32px;border-radius:var(--rad2);cursor:pointer;border:1px solid #3a3a42;background:#1c1c21;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#5a5a6a;transition:all .15s}
+.sdot-day.on{background:#0f2a18;border-color:#3a9a50;color:#50c070}
+.sdot-month{height:36px;border-radius:var(--rad2);cursor:pointer;border:1px solid #3a3a42;background:#1c1c21;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#5a5a6a;transition:all .15s}
+.sdot-month.on{background:#0f2a18;border-color:#3a9a50;color:#50c070}
+.sdot-year{height:36px;border-radius:var(--rad2);cursor:pointer;border:1px solid #3a3a42;background:#1c1c21;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#5a5a6a;transition:all .15s}
+.sdot-year.on{background:#3a2800;border-color:#e09a20;color:#f0b040}
+.dstat{font-size:15px;color:#5a5a6a;margin-top:9px}.dstat span{color:#50c070;font-weight:600}
+/* GOALS & METAS */
+.grow{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+.glabel{font-size:14px;color:#5a5a6a;min-width:84px;text-transform:uppercase;letter-spacing:.04em}
+.ginp{flex:1;background:#1c1c21;border:1px solid #3a3a42;border-radius:var(--rad2);color:#e8e8ec;font-size:17px;padding:11px 13px;outline:none}
+.ginp:focus{border-color:#7f77dd}.ginp::placeholder{color:#5a5a6a}
+.aitem{display:flex;align-items:center;gap:13px;background:#1c1c21;border:1px solid #2e2e34;border-radius:var(--rad2);padding:12px 15px;margin-bottom:8px}
+.anum{font-size:15px;color:#afa9ec;font-weight:700;min-width:24px}
+.ainp{flex:1;background:transparent;border:none;color:#e8e8ec;font-size:17px;outline:none}.ainp::placeholder{color:#5a5a6a}
+.arc-score{width:48px;background:#141417;border:1px solid #3a3a42;border-radius:6px;color:#f0b040;font-size:15px;font-weight:600;padding:6px 8px;outline:none;text-align:center;flex-shrink:0}
+.arc-score:focus{border-color:#e09a20}
+.savebtn{width:100%;padding:13px;font-size:18px;font-weight:600;background:#26215c;border:1px solid #7f77dd;color:#afa9ec;border-radius:var(--rad2);cursor:pointer;margin-top:13px;transition:all .15s}
+.savebtn:hover{background:#32285a}.okmsg{text-align:center;font-size:16px;color:#50c070;margin-top:8px;display:none}
+/* AFFIRMATIONS */
+.affirm-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.affirm-num{font-size:13px;color:#ac3;font-weight:700;min-width:22px}
+.affirm-inp{flex:1;background:#1c1c21;border:1px solid #2e2e34;border-radius:var(--rad2);color:#e8e8ec;font-size:16px;padding:9px 12px;outline:none}
+.affirm-inp:focus{border-color:#afa9ec}
+.affirm-inp::placeholder{color:#5a5a6a}
+/* 90-day plan */
+.plan-textarea{width:100%;background:#1c1c21;border:1px solid #3a3a42;border-radius:var(--rad2);color:#e8e8ec;font-size:16px;padding:12px 14px;outline:none;resize:vertical;font-family:inherit;line-height:1.55;min-height:100px}
+.plan-textarea:focus{border-color:#7f77dd}
+.plan-textarea::placeholder{color:#5a5a6a}
+/* TO DO */
+.step-row{display:flex;align-items:flex-start;gap:13px;margin-bottom:13px}.step-row:last-child{margin-bottom:0}
+.step-num{width:28px;height:28px;border-radius:50%;background:#001a3a;border:1px solid #0078d4;color:#4da3ff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-txt{font-size:16px;color:#9898a8;line-height:1.55;padding-top:3px}
+.step-txt a{color:#4da3ff;text-decoration:none}.step-txt a:hover{text-decoration:underline}
+.step-txt strong{color:#e8e8ec}
+.step-txt code{background:#1c1c21;border:1px solid #3a3a42;border-radius:4px;padding:1px 7px;font-size:13px;color:#afa9ec;font-family:monospace}
+.tok-inp{width:100%;background:#1c1c21;border:1px solid #3a3a42;border-radius:var(--rad2);color:#e8e8ec;font-size:16px;padding:11px 14px;outline:none;font-family:monospace;transition:border .15s;margin-top:5px}
+.tok-inp:focus{border-color:#0078d4}.tok-inp::placeholder{color:#5a5a6a;font-family:inherit}
+.conn-bar{display:flex;align-items:center;gap:12px;background:#001a3a;border:1px solid #0078d4;border-radius:var(--rad2);padding:13px 17px;margin-bottom:14px;flex-wrap:wrap}
+.av{width:40px;height:40px;border-radius:50%;background:#0078d4;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
+.conn-name{font-size:18px;font-weight:600;color:#e8e8ec}.conn-mail{font-size:14px;color:#4da3ff;margin-top:2px}
+.conn-ok{font-size:14px;color:#50c070;margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:5px}
+.disc-btn{background:none;border:1px solid #3a3a42;border-radius:6px;color:#5a5a6a;font-size:13px;padding:6px 13px;cursor:pointer;flex-shrink:0}
+.disc-btn:hover{border-color:#c03030;color:#f09595}
+.tok-timer{font-size:14px;font-weight:600}.tok-ok{color:#50c070}.tok-warn{color:#f0b040}.tok-exp{color:#f07050}
+.filter-bar{display:flex;align-items:center;gap:7px;margin-bottom:13px;flex-wrap:wrap}
+.filter-btn{border-radius:99px;font-size:14px;font-weight:600;padding:6px 14px;cursor:pointer;border:1px solid #3a3a42;background:#1c1c21;color:#5a5a6a;transition:all .12s}
+.filter-btn:hover{color:#9898a8}.filter-btn.on{background:#001a3a;border-color:#0078d4;color:#4da3ff}
+.search-inp{flex:1;min-width:130px;background:#1c1c21;border:1px solid #3a3a42;border-radius:99px;color:#e8e8ec;font-size:16px;padding:8px 16px;outline:none;transition:border .15s}
+.search-inp:focus{border-color:#0078d4}.search-inp::placeholder{color:#5a5a6a}
+.todo-row{display:flex;align-items:flex-start;gap:11px;padding:13px;border-radius:var(--rad2);border:1px solid #2e2e34;background:#1c1c21;margin-bottom:9px}
+.todo-row:hover{border-color:#3a3a42}.todo-row.added{opacity:.38}
+.imp-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.todo-title{font-size:18px;color:#e8e8ec;line-height:1.35}
+.todo-meta{font-size:13px;color:#5a5a6a;margin-top:3px;display:flex;gap:11px;flex-wrap:wrap}
+.cat-btns{display:flex;gap:5px;flex-shrink:0}
+.cb2{border-radius:6px;font-size:14px;font-weight:700;padding:7px 12px;cursor:pointer;border:1px solid;transition:all .12s}
+.cb2:active{transform:scale(.92)}
+.cba{background:#3a1a10;border-color:#e05c3a;color:#f07050}.cba:hover{background:#4a2010}
+.cbb{background:#3a2800;border-color:#e09a20;color:#f0b040}.cbb:hover{background:#4a3400}
+.cbc{background:#0f2a18;border-color:#3a9a50;color:#50c070}.cbc:hover{background:#1a3a24}
+.cb-quit{background:#1c1c21;border-color:#5a5a6a;color:#8888a0;font-size:13px;padding:7px 11px}
+.cb-quit:hover{border-color:#c03030;color:#f09595}
+.empty{text-align:center;padding:28px;color:#5a5a6a;font-size:18px}
+.loading{display:flex;align-items:center;justify-content:center;gap:11px;padding:26px;color:#4da3ff;font-size:18px}
+.spin{width:20px;height:20px;border:2px solid #001a3a;border-top-color:#0078d4;border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.list-sel{flex:1;background:#1c1c21;border:1px solid #3a3a42;border-radius:var(--rad2);color:#e8e8ec;font-size:18px;padding:11px 14px;outline:none}
+/* GUIDE */
+.prow{padding:14px 0;border-bottom:1px solid #1c1c21}.prow:last-child{border-bottom:none}
+.pnum{font-size:14px;color:#afa9ec;font-weight:700;margin-bottom:3px}
+.ptitle{font-size:20px;color:#e8e8ec;font-weight:600;margin-bottom:5px}
+.pdesc{font-size:16px;color:#9898a8;line-height:1.65}
+.pdesc .line{display:block}.pdesc .line+.line{margin-top:4px}
+.quote{border-left:3px solid #26215c;padding:12px 16px;background:#141417;border-radius:0 var(--rad2) var(--rad2) 0;color:#9898a8;font-size:17px;font-style:italic;line-height:1.6;margin-bottom:15px}
+#import-file{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">Panel de Tiempo — Brian Tracy</div>
+    <div class="topbar-sub" id="fecha"></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:11px">
+    <div class="save-ind" id="save-ind"><div style="width:7px;height:7px;border-radius:50%;background:#50c070"></div> Guardado</div>
+    <div class="ring-wrap">
+      <svg width="56" height="56" viewBox="0 0 56 56">
+        <circle cx="28" cy="28" r="21" fill="none" stroke="#2e2e34" stroke-width="5"/>
+        <circle id="rc" cx="28" cy="28" r="21" fill="none" stroke="#7f77dd" stroke-width="5" stroke-dasharray="131.9" stroke-dashoffset="131.9" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-label" id="rpct">0%</div>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="ntab on" onclick="sw('tareas',this)">Tareas ABCDE</button>
+  <button class="ntab ms" onclick="sw('todo',this)" id="ms-tab">⟳ To Do</button>
+  <button class="ntab" onclick="sw('metas',this)">Metas</button>
+  <button class="ntab" onclick="sw('habitos',this)">Hábitos</button>
+  <button class="ntab" onclick="sw('guia',this)">Guía</button>
+  <button class="ntab" onclick="sw('backup',this)">💾 Copia</button>
+</div>
+
+<!-- ══════════════════════ TAREAS ══════════════════════ -->
+<div class="pane on" id="p-tareas">
+  <div class="storage-bar">
+    <div class="sdot"></div>
+    <strong>Guardado automático</strong> en este navegador
+    <span class="last-saved" id="last-saved"></span>
+    <button class="clear-btn" onclick="clearAll()">Borrar todo</button>
+  </div>
+
+  <!-- BÚSQUEDA GLOBAL -->
+  <div class="search-bar">
+    <input class="global-search" id="global-search" placeholder="🔍 Buscar tarea en A, B, C, D, E..." oninput="globalSearch()">
+    <button class="btn btn-n" onclick="clearSearch()" style="padding:10px 16px;font-size:14px">✕ Limpiar</button>
+  </div>
+  <div class="search-results" id="search-results"></div>
+
+  <div class="hint"><strong>Método ABCDE:</strong> &nbsp;<strong style="color:#f07050">A</strong> debe hacerse · <strong style="color:#f0b040">B</strong> debería · <strong style="color:#50c070">C</strong> deseable · <strong style="color:#5090f0">D</strong> delegar · <strong style="color:#8888a0">E</strong> eliminar &nbsp;·&nbsp; <strong style="color:#afa9ec">⠿</strong> arrastra para reordenar · <strong style="color:#afa9ec">✎</strong> editar</div>
+  <div class="toast" id="toast"></div>
+
+  <div class="cols">
+    <div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#f07050"></div><span class="pill pa">A</span> Prioridad absoluta</div>
+        <div id="la"></div>
+        <div class="addrow"><input class="inp" id="ia" placeholder="Nueva tarea A..." onkeydown="if(event.key==='Enter')add('a')"><button class="btn btn-a" onclick="add('a')">+ A</button></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#f0b040"></div><span class="pill pb">B</span> Deberían hacerse hoy</div>
+        <div id="lb"></div>
+        <div class="addrow"><input class="inp" id="ib" placeholder="Nueva tarea B..." onkeydown="if(event.key==='Enter')add('b')"><button class="btn btn-b" onclick="add('b')">+ B</button></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#50c070"></div><span class="pill pc">C</span> Deseable</div>
+        <div id="lc"></div>
+        <div class="addrow"><input class="inp" id="ic" placeholder="Nueva tarea C..." onkeydown="if(event.key==='Enter')add('c')"><button class="btn btn-c" onclick="add('c')">+ C</button></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#5090f0"></div><span class="pill pd">D</span> Delegar &nbsp;<span class="pill pe">E</span> Eliminar</div>
+        <div id="ld"></div>
+        <div class="addrow">
+          <input class="inp" id="idе" placeholder="Nueva tarea D / E..." onkeydown="if(event.key==='Enter')addDE()">
+          <select class="sel" id="sde"><option value="d">D</option><option value="e">E</option></select>
+          <button class="btn btn-n" onclick="addDE()">+ Añadir</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g4" style="margin-top:0">
+    <div class="metric"><div class="mlabel">A completadas</div><div class="mval" id="sa">0/0</div><div class="bbar"><div class="bfill" id="ba" style="width:0%;background:#e05c3a"></div></div></div>
+    <div class="metric"><div class="mlabel">B completadas</div><div class="mval" id="sb">0/0</div><div class="bbar"><div class="bfill" id="bb" style="width:0%;background:#e09a20"></div></div></div>
+    <div class="metric"><div class="mlabel">C completadas</div><div class="mval" id="sc2">0/0</div><div class="bbar"><div class="bfill" id="bc" style="width:0%;background:#3a9a50"></div></div></div>
+    <div class="metric"><div class="mlabel">Total completadas</div><div class="mval" id="st">0/0</div><div class="bbar"><div class="bfill" id="bt" style="width:0%;background:#7f77dd"></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ TO DO ══════════════════════ -->
+<div class="pane" id="p-todo">
+  <div class="cols">
+    <div id="td-setup">
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#4da3ff"></div>Conexión con Microsoft Graph API</div>
+        <div class="step-row"><div class="step-num">1</div><div class="step-txt">Ve a <a href="https://developer.microsoft.com/en-us/graph/graph-explorer" target="_blank">Graph Explorer</a> e inicia sesión con tu cuenta Microsoft.</div></div>
+        <div class="step-row"><div class="step-num">2</div><div class="step-txt">Escribe <code>https://graph.microsoft.com/v1.0/me/todo/lists</code> y pulsa <strong>Run query</strong>. Acepta los permisos.</div></div>
+        <div class="step-row"><div class="step-num">3</div><div class="step-txt">Pestaña <strong>Access token</strong> → botón <strong>Copy</strong>.</div></div>
+        <div class="step-row" style="margin-bottom:0"><div class="step-num">4</div><div class="step-txt">Pégalo abajo y pulsa <strong>Conectar</strong>. Dura ~1h.</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#4da3ff"></div>Token de acceso</div>
+        <div class="err" id="err"></div>
+        <div style="font-size:13px;color:#5a5a6a;margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">Pega tu token aquí</div>
+        <input type="password" class="tok-inp" id="tok" placeholder="eyJ0eXAiOiJKV1QiLCJhb...">
+        <div style="font-size:13px;color:#5a5a6a;margin-top:7px">Solo se usa en tu navegador.</div>
+        <div style="margin-top:13px"><button class="btn btn-ms" id="cbtn" onclick="connect()" style="width:100%;padding:13px;font-size:18px;font-weight:600">Conectar con Microsoft To Do</button></div>
+      </div>
+    </div>
+    <div id="td-main" style="display:none">
+      <div class="conn-bar">
+        <div class="av" id="uav">?</div>
+        <div><div class="conn-name" id="uname">—</div><div class="conn-mail" id="umail">—</div></div>
+        <div class="conn-ok"><svg width="14" height="14" viewBox="0 0 13 13"><circle cx="6.5" cy="6.5" r="6" stroke="#3a9a50" fill="none"/><path d="M3.5 6.5l2 2 4-4" stroke="#50c070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Conectado · <span id="tok-ttl" class="tok-timer tok-ok">60 min</span></div>
+        <button class="disc-btn" onclick="disconnect()">Desconectar</button>
+      </div>
+      <div class="card">
+        <div class="card-head" style="margin-bottom:11px"><div class="dot" style="background:#4da3ff"></div>Lista de tareas</div>
+        <div style="display:flex;gap:9px;margin-bottom:13px"><select class="list-sel" id="lsel" onchange="loadTasks()"></select><button class="btn btn-ms" onclick="loadTasks()" style="padding:10px 15px;font-size:14px">↺ Sync</button></div>
+        <div class="filter-bar">
+          <input class="search-inp" id="search" placeholder="🔍 Buscar..." oninput="renderTodoTasks()">
+          <button class="filter-btn on" onclick="setFilter('all',this)">Todas</button>
+          <button class="filter-btn" onclick="setFilter('high',this)">🔴 Alta</button>
+          <button class="filter-btn" onclick="setFilter('due',this)">📅 Fecha</button>
+          <button class="filter-btn" onclick="setFilter('new',this)">⭐ Sin añadir</button>
+        </div>
+        <div id="td-wrap"><div class="empty">Selecciona una lista para ver tus tareas</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#4da3ff"></div>Crear tarea en To Do</div>
+        <div class="addrow">
+          <input class="inp" id="new-title" placeholder="Nombre de la nueva tarea..." style="flex:2">
+          <select class="sel" id="new-imp"><option value="normal">Normal</option><option value="high">Alta</option><option value="low">Baja</option></select>
+          <button class="btn btn-ms" onclick="createTodoTask()">+ Crear</button>
+        </div>
+        <div class="okmsg" id="create-ok" style="margin-top:9px">Tarea creada ✓</div>
+      </div>
+      <div class="g2">
+        <div class="metric"><div class="mlabel">Importadas hoy</div><div class="mval" id="imp-count">0</div></div>
+        <div class="metric"><div class="mlabel">Completadas en To Do</div><div class="mval" id="done-count">0</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ METAS ══════════════════════ -->
+<div class="pane" id="p-metas">
+  <div class="cols">
+    <div>
+      <!-- MIS METAS -->
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#afa9ec"></div>Mis metas (cap. 2–4)</div>
+        <div class="grow"><div class="glabel">Vida</div><input class="ginp" id="gv" placeholder="Mi meta principal de vida es..."></div>
+        <div class="grow"><div class="glabel">Carrera</div><input class="ginp" id="gc" placeholder="Mi meta de carrera es..."></div>
+        <div class="grow"><div class="glabel">Familia</div><input class="ginp" id="gf" placeholder="Mi meta familiar es..."></div>
+        <div class="grow"><div class="glabel">1 año</div><input class="ginp" id="g1" placeholder="Este año quiero lograr..."></div>
+        <div class="grow"><div class="glabel">3 meses</div><input class="ginp" id="g3" placeholder="Este trimestre quiero lograr..."></div>
+        <div class="grow"><div class="glabel">Mes actual</div><input class="ginp" id="gm" placeholder="Este mes quiero lograr..."></div>
+        <button class="savebtn" onclick="saveMetas()">Guardar metas</button>
+        <div class="okmsg" id="mo">Guardadas correctamente ✓</div>
+      </div>
+      <!-- AFIRMACIONES -->
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#aacc44"></div>Afirmaciones de meta (cap. 3)</div>
+        <div class="hint">Escribe cada meta en primera persona, tiempo presente, como si ya se hubiera logrado. <strong>"Soy... Tengo... Logro..."</strong> Léelas cada mañana.</div>
+        <div id="affirm-wrap"></div>
+        <button class="savebtn" style="background:#1a2a0a;border-color:#aacc44;color:#aacc44;" onclick="saveOk('affirm-ok')">Guardar afirmaciones</button>
+        <div class="okmsg" id="affirm-ok">Guardadas correctamente ✓</div>
+      </div>
+    </div>
+    <div>
+      <!-- ÁREAS DE RESULTADO CLAVE -->
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#afa9ec"></div>Áreas de resultado clave (cap. 10)</div>
+        <div class="hint">Las 5–7 actividades que producen el 80% de tus resultados. Puntúa del 1 al 10 cada área. La más baja es tu cuello de botella: hazla prioridad A inmediata.</div>
+        <div style="display:grid;grid-template-columns:1fr 52px;gap:6px;margin-bottom:6px;padding:0 4px">
+          <div style="font-size:12px;color:#5a5a6a;text-transform:uppercase;letter-spacing:.05em">Área</div>
+          <div style="font-size:12px;color:#5a5a6a;text-transform:uppercase;letter-spacing:.05em;text-align:center">Nota</div>
+        </div>
+        <div id="areas-wrap"></div>
+        <button class="savebtn" onclick="saveOk('ao')">Guardar áreas</button>
+        <div class="okmsg" id="ao">Guardadas correctamente ✓</div>
+      </div>
+      <!-- PLAN DE MEJORA 90 DÍAS -->
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#f0b040"></div>Plan de mejora 90 días (cap. 10)</div>
+        <div class="hint">Identifica el <strong>ARC con nota más baja</strong> y escribe el plan concreto para mejorarlo en los próximos 90 días. Revisión cada 30 días.</div>
+        <div class="grow" style="margin-bottom:10px"><div class="glabel">ARC a mejorar</div><input class="ginp" id="plan-arc" placeholder="¿Qué área vas a mejorar?"></div>
+        <div style="font-size:13px;color:#5a5a6a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Acciones concretas</div>
+        <textarea class="plan-textarea" id="plan-texto" placeholder="1. Acción concreta...&#10;2. Acción concreta...&#10;3. Acción concreta..."></textarea>
+        <div class="grow" style="margin-top:10px;margin-bottom:0"><div class="glabel">Fecha inicio</div><input class="ginp" id="plan-fecha" placeholder="dd/mm/aaaa" style="font-size:16px"></div>
+        <button class="savebtn" style="background:#3a2800;border-color:#e09a20;color:#f0b040;" onclick="savePlan()">Guardar plan</button>
+        <div class="okmsg" id="plan-ok">Plan guardado correctamente ✓</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ HÁBITOS ══════════════════════ -->
+<div class="pane" id="p-habitos">
+  <div class="cols3">
+    <!-- DIARIOS -->
+    <div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#50c070"></div>Verificación diaria</div>
+        <div class="hint" style="font-size:13px">✎ editar · × eliminar · ⠿ reordenar · + añadir sin límite</div>
+        <div id="hlist-daily"></div>
+        <div class="add-hab-row">
+          <input class="inp" id="new-daily" placeholder="Nuevo hábito diario..." onkeydown="if(event.key==='Enter')addHab('daily')" style="font-size:15px;padding:9px 13px">
+          <button class="btn btn-c" onclick="addHab('daily')" style="padding:9px 16px;font-size:14px">+ Añadir</button>
+        </div>
+      </div>
+      <!-- RACHA SEMANAL -->
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#afa9ec"></div>Racha semanal</div>
+        <div class="wgrid" style="margin-bottom:7px">
+          <div class="dlabel">L</div><div class="dlabel">M</div><div class="dlabel">X</div><div class="dlabel">J</div><div class="dlabel">V</div><div class="dlabel">S</div><div class="dlabel">D</div>
+        </div>
+        <div class="wgrid" id="wdots"></div>
+        <div class="dstat">Días activos: <span id="dcnt">0</span> / 7</div>
+      </div>
+    </div>
+    <!-- SEMANALES -->
+    <div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#f0b040"></div>Verificación semanal</div>
+        <div class="hint" style="font-size:13px">Hábitos que revisas una vez a la semana</div>
+        <div id="hlist-weekly"></div>
+        <div class="add-hab-row">
+          <input class="inp" id="new-weekly" placeholder="Nuevo hábito semanal..." onkeydown="if(event.key==='Enter')addHab('weekly')" style="font-size:15px;padding:9px 13px">
+          <button class="btn btn-b" onclick="addHab('weekly')" style="padding:9px 16px;font-size:14px">+ Añadir</button>
+        </div>
+      </div>
+      <!-- RACHA MENSUAL -->
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#f0b040"></div>Racha mensual</div>
+        <div class="mgrid" style="margin-bottom:7px" id="month-labels"></div>
+        <div class="mgrid" id="mdots"></div>
+        <div class="dstat">Meses activos: <span id="mcnt">0</span> / 12</div>
+      </div>
+    </div>
+    <!-- MENSUALES -->
+    <div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#4da3ff"></div>Verificación mensual</div>
+        <div class="hint" style="font-size:13px">Hábitos que revisas una vez al mes</div>
+        <div id="hlist-monthly"></div>
+        <div class="add-hab-row">
+          <input class="inp" id="new-monthly" placeholder="Nuevo hábito mensual..." onkeydown="if(event.key==='Enter')addHab('monthly')" style="font-size:15px;padding:9px 13px">
+          <button class="btn btn-ms" onclick="addHab('monthly')" style="padding:9px 16px;font-size:14px">+ Añadir</button>
+        </div>
+      </div>
+      <!-- RACHA ANUAL -->
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#f0b040"></div>Racha anual (hasta 2030)</div>
+        <div class="ygrid" style="margin-bottom:7px" id="year-labels"></div>
+        <div class="ygrid" id="ydots"></div>
+        <div class="dstat">Años activos: <span id="ycnt">0</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ GUÍA ══════════════════════ -->
+<div class="pane" id="p-guia">
+  <div class="quote">"Cada minuto invertido en planificación ahorra diez minutos de ejecución." — Brian Tracy</div>
+  <div class="cols">
+    <div class="card" id="guia-col1"></div>
+    <div class="card" id="guia-col2"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ BACKUP ══════════════════════ -->
+<div class="pane" id="p-backup">
+  <div class="cols">
+    <div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#50c070"></div>Exportar copia de seguridad</div>
+        <div class="hint">Exporta todos tus datos a un archivo <strong>.json</strong>. Guárdalo para restaurarlo si cambias de navegador u ordenador.</div>
+        <button class="btn btn-export" onclick="exportData()" style="width:100%;padding:13px;font-size:18px;font-weight:600;margin-top:4px">⬇ Exportar datos a JSON</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#4da3ff"></div>Importar copia de seguridad</div>
+        <div class="hint">Restaura tus datos desde un archivo <strong>.json</strong>. <strong style="color:#f07050">Reemplazará todos los datos actuales.</strong></div>
+        <input type="file" id="import-file" accept=".json" onchange="importData(event)">
+        <button class="btn btn-import" onclick="document.getElementById('import-file').click()" style="width:100%;padding:13px;font-size:18px;font-weight:600;margin-top:4px">⬆ Importar datos desde JSON</button>
+        <div class="okmsg" id="import-ok" style="margin-top:9px">Datos importados correctamente ✓</div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-head"><div class="dot" style="background:#f07050"></div>Zona de peligro</div>
+        <div class="hint" style="border-color:#e05c3a">Borra permanentemente todos los datos de este navegador. No se puede deshacer.</div>
+        <button class="btn btn-danger" onclick="clearAll()" style="width:100%;padding:13px;font-size:18px;font-weight:600;margin-top:4px">🗑 Borrar todos los datos</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+const DEFAULT_DAILY=["Preparé la lista de tareas anoche","Empecé con 30 min de planificación tranquila","Comencé mi tarea A1 sin demora","Completé al menos una tarea A","Usé un bloque de 90 min sin interrupciones","Agrupé correos y llamadas en un momento","Dediqué tiempo a una meta de largo plazo","Mantuve el escritorio ordenado"];
+const DEFAULT_WEEKLY=["Revisé mis Áreas de Resultado Clave","Planifiqué las prioridades de la semana","Revisé el progreso de mis metas trimestrales","Dediqué tiempo al desarrollo personal"];
+const DEFAULT_MONTHLY=["Revisé y actualicé mis metas anuales","Evalué si mis ARC siguen siendo correctas","Realicé copia de seguridad del panel","Releí el capítulo más relevante del libro"];
+const MESES_CORTOS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const YEARS_LIST=[2025,2026,2027,2028,2029,2030];
+const CATS=['a','b','c','d','e'];
+const CAT_LABELS={a:'A — Prioridad absoluta',b:'B — Debería hacerse',c:'C — Deseable',d:'D — Delegar',e:'E — Eliminar'};
+const CLR={a:'#f07050',b:'#f0b040',c:'#50c070',d:'#5090f0',e:'#8888a0'};
+const LS_KEY='tracy_panel_v3';
+
+const PRINC=[
+["1","Psicología del tiempo","Tu autoestima y tu productividad están directamente relacionadas: cuando rindes bien, te sientes mejor contigo mismo.","Repite cada mañana: 'Soy un excelente gestor de mi tiempo'. El diálogo interno moldea tus hábitos.","Empieza el día con una pequeña tarea completada; ese impulso inicial genera energía para el resto."],
+["2","Establece tus valores","Tus valores son el filtro que determina qué merece tu tiempo y qué no.","Escribe tus 5 valores principales. Cada decisión importante debería alinearse con al menos uno de ellos.","Si una tarea no conecta con ningún valor, cuestiona si realmente deberías hacerla."],
+["3","Visión y misión","Define con claridad qué estás tratando de lograr en cada área importante de tu vida.","Pregúntate semanalmente: ¿qué estoy tratando de hacer? ¿Cómo lo estoy haciendo? ¿Cómo me va?","Sin visión, el trabajo diario se convierte en actividad sin propósito."],
+["4","Proyecta y mira atrás","Imagina tu vida ideal dentro de 3 años con todo el detalle que puedas. ¿Dónde estás? ¿Qué haces?","Ahora mira hacia atrás desde ese futuro hasta hoy: ¿qué pasos habrías tenido que dar para llegar allí?","Esos pasos son tus prioridades actuales. Esta técnica convierte la visión en acción concreta."],
+["5","Redacta planes por escrito","Un plan escrito aumenta la probabilidad de éxito hasta un 80% respecto a un plan mental.","Cada meta necesita una lista de acciones ordenadas por secuencia lógica.","Regla de Tracy: 1 minuto de planificación ahorra 10 minutos de ejecución. Planifica siempre."],
+["6","Registra tus proyectos","Para cada proyecto complejo, crea una lista de verificación con todos los pasos necesarios.","Usa diagramas PERT o Gantt simples para visualizar dependencias y plazos.","Revisa el estado de tus proyectos cada semana para detectar bloqueos a tiempo."],
+["7","La lista diaria","Cada noche, antes de terminar, escribe la lista completa de tareas del día siguiente.","Este hábito activa tu subconsciente durante el sueño, preparándote para actuar al despertar.","Es el único hábito del libro que Tracy considera imprescindible: sin lista, sin foco."],
+["8","Establece prioridades ABCDE","A = debe hacerse hoy (consecuencias si no se hace). B = debería hacerse. C = deseable pero sin consecuencias.","D = delega en otra persona cualquier tarea que no requiera tu intervención directa.","E = elimina sin culpa todo lo que no aporta valor. Nunca hagas una B mientras haya una A pendiente."],
+["9","No te desvíes de la tarea A1","Tu tarea A1 es la más importante del día. Una vez que la empiezas, no te detengas hasta completarla.","Cada interrupción rompe el estado de flujo y cuesta entre 15 y 30 minutos recuperarlo.","Protege tu tarea A1 con bloqueos de tiempo y silenciando todas las notificaciones."],
+["10","Áreas de resultado clave","Identifica las 5–7 actividades que, si las ejecutas con excelencia, producen el 80% de tus resultados.","Estas áreas son siempre tus prioridades A. Todo lo demás es secundario.","Evalúa periódicamente si tus ARC siguen siendo las correctas: el contexto cambia y también deben hacerlo."],
+["11","Delega en otros","Todo lo que pueda hacer otra persona al 70% de tu calidad, debes delegarlo.","Delegar no es perder control: es liberar tu tiempo para las tareas de mayor impacto.","Invierte tiempo en explicar bien la tarea al principio para no tener que corregir después."],
+["12","Concéntrate en una sola cosa","La multitarea es una ilusión: el cerebro no hace varias cosas a la vez, solo las alterna con coste.","Elige un objetivo por bloque de tiempo y dedícale atención completa hasta terminar.","La concentración sostenida es la habilidad más escasa y más valiosa del siglo XXI."],
+["13","Supera la procrastinación","'Come el sapo': empieza siempre por la tarea más difícil o menos agradable del día.","Si tienes dos sapos, empieza por el más grande. La dificultad no disminuye con la espera.","El alivio que sientes tras completar una tarea difícil genera motivación para las siguientes."],
+["14","Crea bloques de tiempo","Reserva bloques de 90 minutos ininterrumpidos para trabajo de alta concentración.","Cierra el correo, silencia el teléfono, pon un aviso en la puerta si es necesario.","El trabajo profundo requiere bloques largos: ninguna tarea importante se completa en fragmentos de 10 minutos."],
+["15","Controla las interrupciones","Las interrupciones son el mayor ladrón de productividad en el entorno de trabajo moderno.","Agrupa correos y llamadas en momentos concretos del día: mañana y tarde, nunca de forma continua.","Aprende a decir 'ahora no puedo, pero a las X estaré disponible'. El respeto por tu tiempo empieza por ti."],
+["16","Agrupa tareas similares","Agrupar tareas del mismo tipo en un único bloque reduce el coste de cambio mental.","Cada vez que cambias de tipo de tarea, tu cerebro necesita tiempo para ajustarse al nuevo contexto.","Procesa todos los correos de una vez, haz todas las llamadas seguidas: es más eficiente que intercalarlas."],
+["17","Gestiona el teléfono","El teléfono es un sirviente, no un amo. Tú decides cuándo contestas, no el teléfono.","Activa el modo 'no molestar' durante tus bloques de concentración sin ninguna culpa.","La disponibilidad permanente no es productividad: es reactividad crónica disfrazada de trabajo."],
+["18","Reuniones eficientes","Toda reunión sin agenda escrita y hora de fin es un robo de tiempo colectivo.","Antes de convocar una reunión, pregúntate si se puede resolver con un correo o una llamada de 5 minutos.","Empieza a la hora exacta, termina antes si es posible, y acaba con acciones asignadas a personas concretas."],
+["19","Lee y aprende más rápido","Lee con un bolígrafo en la mano: subraya solo las ideas que requieren acción de tu parte.","Al terminar un libro o artículo, escribe una sola acción concreta que vas a implementar.","Leer sin aplicar es entretenimiento; leer con intención de actuar es inversión en ti mismo."],
+["20","Desarrollo personal continuo","Dedica al menos 1 hora diaria a aprender y mejorar en tu campo profesional.","Lee libros, escucha audios, toma cursos: en 5 años de este hábito serás experto reconocido.","El mercado recompensa la excelencia. La mediocridad siempre puede ser reemplazada."],
+["21","Organiza tu espacio de trabajo","Un escritorio desordenado genera ruido visual que dispersa la atención y eleva el estrés.","Regla práctica: si no lo usas hoy, no debe estar sobre tu mesa. Un solo proyecto a la vista.","Un espacio ordenado es un espejo de una mente ordenada. Empieza cada día organizando tu entorno."]
+];
+
+let tasks={a:[],b:[],c:[],d:[],e:[]};
+let habs={daily:[],weekly:[],monthly:[]};
+let days=Array(7).fill(false);
+let months=Array(12).fill(false);
+let years={};
+let metas={vida:'',carrera:'',familia:'',un_anyo:'',tres_meses:'',mes_actual:''};
+let areas=Array(5).fill({text:'',score:''});
+let affirmations=Array(5).fill('');
+let plan={arc:'',texto:'',fecha:''};
+let token=null,tokenExpiry=null,timerInt=null;
+let todoItems=[],addedIds=new Set(),doneInTodo=0,activeFilter='all';
+let saveTimer=null,editingKey=null,editingHab=null;
+let dragSrcCat=null,dragSrcIdx=null,dragHabType=null,dragHabIdx=null;
+
+// ═══════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════
+function persist(){
+  const p={tasks,habs,days,months,years,metas,areas,affirmations,plan,addedIds:[...addedIds],savedAt:new Date().toISOString()};
+  try{
+    localStorage.setItem(LS_KEY,JSON.stringify(p));
+    const ind=document.getElementById('save-ind');ind.style.display='flex';
+    clearTimeout(ind._t);ind._t=setTimeout(()=>ind.style.display='none',1800);
+    const d=new Date();document.getElementById('last-saved').textContent='· '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+  }catch(e){}
+}
+function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(persist,700);}
+
+function loadFromStorage(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);if(!raw)return;
+    const d=JSON.parse(raw);
+    if(d.tasks)tasks=d.tasks;
+    if(d.habs)habs=d.habs;
+    if(d.days)days=d.days;
+    if(d.months)months=d.months;
+    if(d.years)years=d.years;
+    if(d.metas)metas=d.metas;
+    if(d.areas)areas=d.areas;
+    if(d.affirmations)affirmations=d.affirmations;
+    if(d.plan)plan=d.plan;
+    if(d.addedIds)addedIds=new Set(d.addedIds);
+    if(d.savedAt){const dt=new Date(d.savedAt);document.getElementById('last-saved').textContent='· '+dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0');}
+  }catch(e){}
+}
+
+function clearAll(){
+  if(!confirm('¿Borrar todos los datos guardados? Esta acción no se puede deshacer.'))return;
+  tasks={a:[],b:[],c:[],d:[],e:[]};
+  habs={daily:DEFAULT_DAILY.map(t=>({text:t,done:false})),weekly:DEFAULT_WEEKLY.map(t=>({text:t,done:false})),monthly:DEFAULT_MONTHLY.map(t=>({text:t,done:false}))};
+  days=Array(7).fill(false);months=Array(12).fill(false);years={};
+  metas={vida:'',carrera:'',familia:'',un_anyo:'',tres_meses:'',mes_actual:''};
+  areas=Array(5).fill({text:'',score:''});affirmations=Array(5).fill('');plan={arc:'',texto:'',fecha:''};addedIds=new Set();
+  localStorage.removeItem(LS_KEY);
+  restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
+  renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();
+  showToast('Todos los datos han sido borrados');
+}
+
+function exportData(){
+  const p={tasks,habs,days,months,years,metas,areas,affirmations,plan,addedIds:[...addedIds],exportedAt:new Date().toISOString(),version:'3.0'};
+  const blob=new Blob([JSON.stringify(p,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='panel_tracy_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(a.href);
+  showToast('Copia exportada correctamente');
+}
+
+function importData(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!d.tasks)throw new Error('Archivo no válido');
+      if(!confirm('¿Reemplazar todos los datos actuales?')){event.target.value='';return;}
+      tasks=d.tasks||{a:[],b:[],c:[],d:[],e:[]};
+      habs=d.habs||{daily:DEFAULT_DAILY.map(t=>({text:t,done:false})),weekly:DEFAULT_WEEKLY.map(t=>({text:t,done:false})),monthly:DEFAULT_MONTHLY.map(t=>({text:t,done:false}))};
+      if(Array.isArray(habs))habs={daily:DEFAULT_DAILY.map((t,i)=>({text:t,done:!!habs[i]})),weekly:DEFAULT_WEEKLY.map(t=>({text:t,done:false})),monthly:DEFAULT_MONTHLY.map(t=>({text:t,done:false}))};
+      days=d.days||Array(7).fill(false);months=d.months||Array(12).fill(false);years=d.years||{};
+      metas=d.metas||{};areas=d.areas||Array(5).fill({text:'',score:''});
+      affirmations=d.affirmations||Array(5).fill('');plan=d.plan||{arc:'',texto:'',fecha:''};
+      addedIds=new Set(d.addedIds||[]);
+      restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
+      renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();persist();
+      const ok=document.getElementById('import-ok');ok.style.display='block';setTimeout(()=>ok.style.display='none',3000);
+    }catch(err){alert('Error al importar: '+err.message);}
+    event.target.value='';
+  };reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════════
+// GLOBAL SEARCH
+// ═══════════════════════════════════════════════════════════
+function globalSearch(){
+  const q=document.getElementById('global-search').value.trim().toLowerCase();
+  const box=document.getElementById('search-results');
+  if(!q){box.style.display='none';box.innerHTML='';return;}
+  const results=[];
+  CATS.forEach(c=>{
+    tasks[c].forEach((t,i)=>{
+      if(t.t.toLowerCase().includes(q))results.push({c,i,t});
+    });
+  });
+  if(!results.length){box.style.display='block';box.innerHTML='<div style="font-size:16px;color:#5a5a6a;padding:8px">No se encontraron tareas con ese texto.</div>';return;}
+  box.style.display='block';
+  const pillCls={a:'pa',b:'pb',c:'pc',d:'pd',e:'pe'};
+  box.innerHTML='<div style="font-size:13px;color:#5a5a6a;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">'+results.length+' resultado'+(results.length!==1?'s':'')+'</div>'+
+    results.map(({c,i,t})=>`
+      <div class="search-result-row">
+        <input type="checkbox" class="sr-ck" ${t.d?'checked':''} onchange="togFromSearch('${c}',${i})" style="accent-color:${CLR[c]}">
+        <span class="sr-text${t.d?' done':''}" onclick="togFromSearch('${c}',${i})">${esc(t.t)}${t.src?'<span style="font-size:11px;color:#4da3ff;margin-left:6px">↑ To Do</span>':''}</span>
+        <span class="pill ${pillCls[c]} sr-pill">${c.toUpperCase()}</span>
+        <button class="sr-edit" onclick="editFromSearch('${c}',${i})" title="Editar">✎</button>
+        <button class="sr-edit" style="color:#f09595" onclick="delFromSearch('${c}',${i})" title="Eliminar">×</button>
+      </div>`).join('');
+}
+function togFromSearch(c,i){tasks[c][i].d=!tasks[c][i].d;renderAll();scheduleSave();globalSearch();}
+function editFromSearch(c,i){
+  // Switch to tareas tab and open edit
+  const tabBtn=document.querySelector('.ntab.on');
+  sw('tareas',document.querySelectorAll('.ntab')[0]);
+  clearSearch();
+  setTimeout(()=>startEdit(c,i),100);
+}
+function delFromSearch(c,i){
+  const t=tasks[c][i];if(t&&t.tid)addedIds.delete(t.tid);
+  tasks[c].splice(i,1);if(editingKey===c+'-'+i)editingKey=null;
+  renderAll();scheduleSave();globalSearch();
+}
+function clearSearch(){
+  document.getElementById('global-search').value='';
+  const box=document.getElementById('search-results');box.style.display='none';box.innerHTML='';
+}
+
+// ═══════════════════════════════════════════════════════════
+// TASKS
+// ═══════════════════════════════════════════════════════════
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+
+function renderList(c){
+  if(c==='e'){renderList('d');return;}
+  const elId=(c==='d')?'ld':'l'+c;
+  const el=document.getElementById(elId);if(!el)return;
+  const renderCat=c==='d'?['d','e']:[c];
+  let html='';
+  renderCat.forEach(cat=>{
+    tasks[cat].forEach((t,i)=>{
+      const key=cat+'-'+i;
+      html+=editingKey===key?renderEditRow(cat,i,t,key):renderDisplayRow(cat,i,t);
+    });
+  });
+  el.innerHTML=html;
+}
+
+function renderDisplayRow(c,i,t){
+  const key=c+'-'+i;
+  return `<div class="trow" id="row-${key}" draggable="true"
+    ondragstart="onDragStart(event,'${c}',${i})"
+    ondragover="onDragOver(event,'${c}',${i})"
+    ondragleave="onDragLeave(event)"
+    ondrop="onDrop(event,'${c}',${i})">
+    <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
+    <input type="checkbox" class="ck" ${t.d?'checked':''} onchange="tog('${c}',${i})" style="accent-color:${CLR[c]}">
+    <div class="task-body">
+      <div class="ttx${t.d?' done':''}">${esc(t.t)}</div>
+      ${t.src?`<span class="tsrc">↑ Microsoft To Do</span>`:''}
+      <div class="task-hint">⠿ reordenar · ✎ editar</div>
+    </div>
+    <span class="pill p${c}">${c.toUpperCase()}</span>
+    <div class="task-actions">
+      <button class="abtn edit" onclick="startEdit('${c}',${i})">✎</button>
+      ${t.tid&&token?`<button class="abtn done-btn" onclick="completeInTodo('${c}',${i},${JSON.stringify(t.tid)})">✓</button>`:''}
+      <button class="abtn del" onclick="del('${c}',${i})">×</button>
+    </div>
+  </div>`;
+}
+
+function renderEditRow(c,i,t,key){
+  return `<div class="trow" id="row-${key}" style="flex-direction:column;align-items:stretch;background:#1a1a22;margin:0 -4px;padding:12px 4px;border-radius:8px;border-bottom:none">
+    <textarea class="task-edit-inp" id="edit-inp-${key}" rows="2" onkeydown="editKD(event,'${c}',${i})">${esc(t.t)}</textarea>
+    <div class="edit-actions">
+      <button class="edit-ok" onclick="confirmEdit('${c}',${i})">✓ Guardar</button>
+      <button class="edit-cancel" onclick="cancelEdit()">Cancelar</button>
+      <select class="move-sel" id="mv-${key}">
+        <option value="${c}" selected>Mover a...</option>
+        ${CATS.filter(x=>x!==c).map(x=>`<option value="${x}">${x.toUpperCase()} — ${CAT_LABELS[x].split('—')[1].trim()}</option>`).join('')}
+      </select>
+    </div>
+  </div>`;
+}
+
+function onDragStart(e,c,i){dragSrcCat=c;dragSrcIdx=i;e.currentTarget.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c+'-'+i);}
+function onDragOver(e,c,i){e.preventDefault();e.dataTransfer.dropEffect='move';if(dragSrcCat===c&&dragSrcIdx!==i)e.currentTarget.classList.add('drag-over');}
+function onDragLeave(e){e.currentTarget.classList.remove('drag-over');}
+function onDrop(e,c,i){
+  e.preventDefault();e.currentTarget.classList.remove('drag-over');
+  if(!dragSrcCat||dragSrcCat!==c||dragSrcIdx===i)return;
+  const moved=tasks[c].splice(dragSrcIdx,1)[0];tasks[c].splice(i,0,moved);
+  dragSrcCat=null;dragSrcIdx=null;renderList(c);scheduleSave();
+}
+document.addEventListener('dragend',()=>{
+  document.querySelectorAll('.trow.dragging').forEach(r=>r.classList.remove('dragging'));
+  document.querySelectorAll('.trow.drag-over').forEach(r=>r.classList.remove('drag-over'));
+});
+
+function startEdit(c,i){
+  editingKey=c+'-'+i;renderList(c);
+  requestAnimationFrame(()=>{const inp=document.getElementById('edit-inp-'+editingKey);if(inp){inp.focus();const l=inp.value.length;inp.setSelectionRange(l,l);}});
+}
+function editKD(e,c,i){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();confirmEdit(c,i);}if(e.key==='Escape')cancelEdit();}
+function confirmEdit(c,i){
+  const key=c+'-'+i;const inp=document.getElementById('edit-inp-'+key);const mv=document.getElementById('mv-'+key);
+  const newText=inp?inp.value.trim():'';const dest=mv?mv.value:c;
+  if(!newText){del(c,i);editingKey=null;return;}
+  tasks[c][i].t=newText;
+  if(dest!==c){tasks[dest].push(tasks[c][i]);tasks[c].splice(i,1);editingKey=null;renderAll();showToast('Tarea movida a '+dest.toUpperCase());}
+  else{editingKey=null;renderList(c);showToast('Tarea actualizada');}
+  scheduleSave();
+}
+function cancelEdit(){editingKey=null;CATS.forEach(c=>{if(c!=='e')renderList(c);});}
+function tog(c,i){tasks[c][i].d=!tasks[c][i].d;renderAll();scheduleSave();}
+function del(c,i){const t=tasks[c][i];if(t&&t.tid)addedIds.delete(t.tid);tasks[c].splice(i,1);if(editingKey===c+'-'+i)editingKey=null;renderAll();scheduleSave();}
+function add(c){const e=document.getElementById('i'+c);const v=e.value.trim();if(!v)return;tasks[c].push({t:v,d:false,id:uid()});e.value='';renderAll();scheduleSave();}
+function addDE(){const c=document.getElementById('sde').value;const e=document.getElementById('idе');const v=e.value.trim();if(!v)return;tasks[c].push({t:v,d:false,id:uid()});e.value='';renderAll();scheduleSave();}
+
+function renderAll(){
+  CATS.forEach(c=>{if(c!=='e')renderList(c);});
+  const aT=tasks.a.length,aD=tasks.a.filter(x=>x.d).length;
+  const bT=tasks.b.length,bD=tasks.b.filter(x=>x.d).length;
+  const cT=tasks.c.length,cD=tasks.c.filter(x=>x.d).length;
+  const allT=CATS.reduce((s,c)=>s+tasks[c].length,0),allD=CATS.reduce((s,c)=>s+tasks[c].filter(x=>x.d).length,0);
+  const sm=(id,bar,d,t,clr)=>{document.getElementById(id).textContent=d+'/'+t;const p=t?Math.round(d/t*100):0;document.getElementById(bar).style.width=p+'%';};
+  sm('sa','ba',aD,aT);sm('sb','bb',bD,bT);sm('sc2','bc',cD,cT);sm('st','bt',allD,allT);
+  const pA=aT?Math.round(aD/aT*100):0;
+  document.getElementById('rpct').textContent=pA+'%';
+  document.getElementById('rc').setAttribute('stroke-dashoffset',131.9-(131.9*pA/100));
+  const imp=CATS.reduce((s,c)=>s+tasks[c].filter(t=>t.src).length,0);
+  const el=document.getElementById('imp-count');if(el)el.textContent=imp;
+}
+
+// ═══════════════════════════════════════════════════════════
+// HABITS
+// ═══════════════════════════════════════════════════════════
+function renderHabList(type){
+  const el=document.getElementById('hlist-'+type);if(!el)return;
+  const list=habs[type];
+  if(!list.length){el.innerHTML='<div style="font-size:14px;color:#5a5a6a;padding:8px 0">Sin hábitos. Añade uno abajo.</div>';return;}
+  el.innerHTML=list.map((h,i)=>{
+    if(editingHab&&editingHab.type===type&&editingHab.i===i){
+      return `<div class="hrow" id="hrow-${type}-${i}">
+        <span class="hab-drag">⠿</span>
+        <input type="checkbox" class="ck" ${h.done?'checked':''} onchange="togHab('${type}',${i})" style="accent-color:#50c070">
+        <input class="hab-edit-inp" id="hab-edit-${type}-${i}" value="${esc(h.text)}" onkeydown="habEditKD(event,'${type}',${i})">
+        <div class="hab-actions">
+          <button class="habtn" style="color:#50c070" onclick="confirmHabEdit('${type}',${i})">✓</button>
+          <button class="habtn" style="color:#9898a8" onclick="cancelHabEdit()">✕</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="hrow${h.done?' chk':''}" id="hrow-${type}-${i}" draggable="true"
+      ondragstart="habDragStart(event,'${type}',${i})"
+      ondragover="habDragOver(event,'${type}',${i})"
+      ondragleave="habDragLeave(event)"
+      ondrop="habDrop(event,'${type}',${i})">
+      <span class="hab-drag" title="Reordenar">⠿</span>
+      <input type="checkbox" class="ck" id="hck-${type}-${i}" ${h.done?'checked':''} onchange="togHab('${type}',${i})" style="accent-color:#50c070">
+      <label class="hlabel" for="hck-${type}-${i}">${esc(h.text)}</label>
+      <div class="hab-actions">
+        <button class="habtn hedit" onclick="startHabEdit('${type}',${i})">✎</button>
+        <button class="habtn hdel" onclick="delHab('${type}',${i})">×</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderAllHabs(){['daily','weekly','monthly'].forEach(renderHabList);}
+function togHab(type,i){habs[type][i].done=!habs[type][i].done;renderHabList(type);scheduleSave();}
+function addHab(type){const inp=document.getElementById('new-'+type);const v=inp.value.trim();if(!v)return;habs[type].push({text:v,done:false});inp.value='';renderHabList(type);scheduleSave();}
+function delHab(type,i){if(!confirm('¿Eliminar este hábito?'))return;habs[type].splice(i,1);renderHabList(type);scheduleSave();}
+function startHabEdit(type,i){editingHab={type,i};renderHabList(type);requestAnimationFrame(()=>{const inp=document.getElementById('hab-edit-'+type+'-'+i);if(inp){inp.focus();inp.select();}});}
+function habEditKD(e,type,i){if(e.key==='Enter'){e.preventDefault();confirmHabEdit(type,i);}if(e.key==='Escape')cancelHabEdit();}
+function confirmHabEdit(type,i){const inp=document.getElementById('hab-edit-'+type+'-'+i);if(!inp)return;const v=inp.value.trim();if(!v){delHab(type,i);editingHab=null;return;}habs[type][i].text=v;editingHab=null;renderHabList(type);scheduleSave();}
+function cancelHabEdit(){editingHab=null;renderAllHabs();}
+function habDragStart(e,type,i){dragHabType=type;dragHabIdx=i;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',type+'-'+i);}
+function habDragOver(e,type,i){e.preventDefault();if(dragHabType===type&&dragHabIdx!==i)e.currentTarget.classList.add('drag-over');}
+function habDragLeave(e){e.currentTarget.classList.remove('drag-over');}
+function habDrop(e,type,i){e.preventDefault();e.currentTarget.classList.remove('drag-over');if(!dragHabType||dragHabType!==type||dragHabIdx===i)return;const arr=habs[type];const moved=arr.splice(dragHabIdx,1)[0];arr.splice(i,0,moved);dragHabType=null;dragHabIdx=null;renderHabList(type);scheduleSave();}
+
+// ═══════════════════════════════════════════════════════════
+// STREAKS
+// ═══════════════════════════════════════════════════════════
+function renderWeek(){
+  document.getElementById('wdots').innerHTML=Array(7).fill(0).map((_,i)=>`<div class="sdot-day${days[i]?' on':''}" id="wd${i}" onclick="togDay(${i})">${days[i]?'✓':''}</div>`).join('');
+}
+function togDay(i){days[i]=!days[i];const e=document.getElementById('wd'+i);e.classList.toggle('on',days[i]);e.textContent=days[i]?'✓':'';document.getElementById('dcnt').textContent=days.filter(Boolean).length;scheduleSave();}
+
+function renderMonths(){
+  const labelsEl=document.getElementById('month-labels');
+  const dotsEl=document.getElementById('mdots');
+  if(!labelsEl||!dotsEl)return;
+  labelsEl.innerHTML=MESES_CORTOS.map(m=>`<div class="dlabel">${m}</div>`).join('');
+  dotsEl.innerHTML=months.map((on,i)=>`<div class="sdot-month${on?' on':''}" onclick="togMonth(${i})">${on?'✓':MESES_CORTOS[i].slice(0,1)}</div>`).join('');
+  document.getElementById('mcnt').textContent=months.filter(Boolean).length;
+}
+function togMonth(i){months[i]=!months[i];renderMonths();scheduleSave();}
+
+function renderYears(){
+  const labelsEl=document.getElementById('year-labels');
+  const dotsEl=document.getElementById('ydots');
+  if(!labelsEl||!dotsEl)return;
+  labelsEl.innerHTML=YEARS_LIST.map(y=>`<div class="dlabel">${y}</div>`).join('');
+  dotsEl.innerHTML=YEARS_LIST.map(y=>`<div class="sdot-year${years[y]?' on':''}" onclick="togYear(${y})">${years[y]?'✓':y.toString().slice(2)}</div>`).join('');
+  document.getElementById('ycnt').textContent=YEARS_LIST.filter(y=>years[y]).length;
+}
+function togYear(y){years[y]=!years[y];renderYears();scheduleSave();}
+
+// ═══════════════════════════════════════════════════════════
+// METAS, ÁREAS, AFIRMACIONES, PLAN
+// ═══════════════════════════════════════════════════════════
+function restoreMetaFields(){
+  const map=[['gv','vida'],['gc','carrera'],['gf','familia'],['g1','un_anyo'],['g3','tres_meses'],['gm','mes_actual']];
+  map.forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=metas[key]||'';});
+}
+function saveMetas(){
+  const map=[['gv','vida'],['gc','carrera'],['gf','familia'],['g1','un_anyo'],['g3','tres_meses'],['gm','mes_actual']];
+  map.forEach(([id,key])=>{const el=document.getElementById(id);if(el)metas[key]=el.value;});
+  scheduleSave();saveOk('mo');
+}
+
+function renderAreas(){
+  // migrate from old plain array
+  if(areas.length&&typeof areas[0]==='string')areas=areas.map(t=>({text:t,score:''}));
+  document.getElementById('areas-wrap').innerHTML=areas.map((a,i)=>`
+    <div class="aitem">
+      <span class="anum">0${i+1}</span>
+      <input class="ainp" value="${esc(a.text||'')}" placeholder="Área de resultado clave..." oninput="areas[${i}]={text:this.value,score:areas[${i}].score||''};scheduleSave()">
+      <input type="number" class="arc-score" min="1" max="10" value="${esc(a.score||'')}" placeholder="—" title="Autoevaluación 1-10" oninput="areas[${i}]={text:areas[${i}].text||'',score:this.value};scheduleSave()">
+    </div>`).join('');
+}
+
+function renderAffirmations(){
+  document.getElementById('affirm-wrap').innerHTML=affirmations.map((v,i)=>`
+    <div class="affirm-row">
+      <span class="affirm-num">${i+1}</span>
+      <input class="affirm-inp" value="${esc(v)}" placeholder="Soy / Tengo / Logro..." oninput="affirmations[${i}]=this.value;scheduleSave()">
+    </div>`).join('');
+}
+
+function renderPlanFields(){
+  const ea=document.getElementById('plan-arc');const et=document.getElementById('plan-texto');const ef=document.getElementById('plan-fecha');
+  if(ea)ea.value=plan.arc||'';if(et)et.value=plan.texto||'';if(ef)ef.value=plan.fecha||'';
+}
+function savePlan(){
+  const ea=document.getElementById('plan-arc');const et=document.getElementById('plan-texto');const ef=document.getElementById('plan-fecha');
+  if(ea)plan.arc=ea.value;if(et)plan.texto=et.value;if(ef)plan.fecha=ef.value;
+  scheduleSave();saveOk('plan-ok');
+}
+
+function saveOk(id){const e=document.getElementById(id);if(e){e.style.display='block';setTimeout(()=>e.style.display='none',2000);}}
+
+// ═══════════════════════════════════════════════════════════
+// GUIDE
+// ═══════════════════════════════════════════════════════════
+function renderGuide(){
+  const half=Math.ceil(PRINC.length/2);
+  const html=([s,e])=>PRINC.slice(s,e).map(([n,title,...lines])=>`<div class="prow"><div class="pnum">${n.padStart(2,'0')}</div><div class="ptitle">${title}</div><div class="pdesc">${lines.map(l=>`<span class="line">${l}</span>`).join('')}</div></div>`).join('');
+  const c1=document.getElementById('guia-col1');const c2=document.getElementById('guia-col2');
+  if(c1)c1.innerHTML='<div class="card-head"><div class="dot" style="background:#afa9ec"></div>Principios 01–11</div>'+html([0,half]);
+  if(c2)c2.innerHTML='<div class="card-head"><div class="dot" style="background:#afa9ec"></div>Principios 12–21</div>'+html([half,PRINC.length]);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MICROSOFT TO DO
+// ═══════════════════════════════════════════════════════════
+function importTask(title,cat,tid){tasks[cat].push({t:title,d:false,src:true,tid,id:uid()});addedIds.add(tid);renderAll();renderTodoTasks();scheduleSave();showToast(`"${title.substring(0,26)}${title.length>26?'…':''}" → ${cat.toUpperCase()}`);}
+async function completeInTodo(cat,i,tid){
+  if(!token||!tid)return;const listId=document.getElementById('lsel').value;
+  try{const res=await fetch(`https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(tid)}`,{method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({status:'completed'})});
+  if(!res.ok)throw new Error(res.status);tasks[cat][i].d=true;doneInTodo++;
+  const el=document.getElementById('done-count');if(el)el.textContent=doneInTodo;
+  renderAll();scheduleSave();showToast('Completada en Microsoft To Do ✓');setTimeout(()=>{del(cat,i);loadTasks();},900);}catch(e){handleApiErr(e);}
+}
+async function connect(){
+  const t=document.getElementById('tok').value.trim();if(!t){showErr('Pega tu token antes de continuar.');return;}
+  const btn=document.getElementById('cbtn');btn.disabled=true;btn.textContent='Conectando...';hideErr();
+  try{const res=await fetch('https://graph.microsoft.com/v1.0/me',{headers:{Authorization:'Bearer '+t}});
+  if(!res.ok)throw new Error(res.status===401?'Token inválido o expirado.':'Error '+res.status);
+  const me=await res.json();token=t;tokenExpiry=Date.now()+3600000;startTimer();
+  const init=(me.displayName||'??').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('uav').textContent=init;document.getElementById('uname').textContent=me.displayName||me.userPrincipalName;
+  document.getElementById('umail').textContent=me.mail||me.userPrincipalName||'';
+  document.getElementById('td-setup').style.display='none';document.getElementById('td-main').style.display='block';
+  document.getElementById('ms-tab').textContent='✓ To Do';await loadLists();}
+  catch(e){showErr(e.message||'No se pudo conectar.');btn.disabled=false;btn.textContent='Conectar con Microsoft To Do';}
+}
+function startTimer(){if(timerInt)clearInterval(timerInt);timerInt=setInterval(()=>{if(!tokenExpiry)return;const rem=Math.max(0,Math.round((tokenExpiry-Date.now())/60000));const el=document.getElementById('tok-ttl');el.textContent=rem>0?rem+' min':'Expirado';el.className='tok-timer '+(rem>10?'tok-ok':rem>0?'tok-warn':'tok-exp');if(rem===0){clearInterval(timerInt);showErr('Token expirado.');}},30000);}
+async function loadLists(){const wrap=document.getElementById('td-wrap');wrap.innerHTML='<div class="loading"><div class="spin"></div>Cargando listas...</div>';try{const res=await fetch('https://graph.microsoft.com/v1.0/me/todo/lists',{headers:{Authorization:'Bearer '+token}});if(!res.ok)throw new Error('Error '+res.status);const data=await res.json();document.getElementById('lsel').innerHTML=data.value.map(l=>`<option value="${l.id}">${esc(l.displayName)}</option>`).join('');if(data.value.length)await loadTasks();else wrap.innerHTML='<div class="empty">No se encontraron listas</div>';}catch(e){handleApiErr(e,wrap);}}
+async function loadTasks(){const listId=document.getElementById('lsel').value;if(!listId)return;const wrap=document.getElementById('td-wrap');wrap.innerHTML='<div class="loading"><div class="spin"></div>Cargando tareas...</div>';try{const res=await fetch(`https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks?$filter=status ne 'completed'&$top=100&$orderby=importance desc`,{headers:{Authorization:'Bearer '+token}});if(!res.ok)throw new Error('Error '+res.status);todoItems=(await res.json()).value||[];renderTodoTasks();}catch(e){handleApiErr(e,wrap);}}
+function setFilter(f,el){activeFilter=f;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderTodoTasks();}
+function renderTodoTasks(){
+  const wrap=document.getElementById('td-wrap');if(!wrap)return;
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const IMP={high:'#f07050',normal:'#f0b040',low:'#5090f0'};const IMPL={high:'Alta',normal:'Normal',low:'Baja'};
+  const items=todoItems.filter(t=>{if(q&&!(t.title||'').toLowerCase().includes(q))return false;if(activeFilter==='high')return t.importance==='high';if(activeFilter==='due')return!!t.dueDateTime;if(activeFilter==='new')return!addedIds.has(t.id);return true;});
+  if(!items.length){wrap.innerHTML='<div class="empty">Sin tareas con ese filtro</div>';return;}
+  wrap.innerHTML=items.map(t=>{const added=addedIds.has(t.id);const clr=IMP[t.importance||'normal'];const due=t.dueDateTime?fmtDate(t.dueDateTime.dateTime):'';
+  return `<div class="todo-row${added?' added':''}"><div class="imp-dot" style="background:${clr}"></div><div style="flex:1;min-width:0"><div class="todo-title">${esc(t.title||'Sin título')}</div><div class="todo-meta">${due?`<span>📅 ${due}</span>`:''}<span style="color:${clr};font-weight:600">${IMPL[t.importance||'normal']}</span>${added?`<span style="color:#3a9a50">✓ En el panel</span>`:''}</div></div><div class="cat-btns">${added?`<button class="cb2 cb-quit" onclick="removeFromPanel(${JSON.stringify(t.id)})">✕</button>`:`<button class="cb2 cba" onclick="importTask(${JSON.stringify(t.title||'')},&quot;a&quot;,${JSON.stringify(t.id)})">A</button><button class="cb2 cbb" onclick="importTask(${JSON.stringify(t.title||'')},&quot;b&quot;,${JSON.stringify(t.id)})">B</button><button class="cb2 cbc" onclick="importTask(${JSON.stringify(t.title||'')},&quot;c&quot;,${JSON.stringify(t.id)})">C</button>`}</div></div>`;}).join('');
+}
+function removeFromPanel(tid){addedIds.delete(tid);CATS.forEach(c=>{const idx=tasks[c].findIndex(t=>t.tid===tid);if(idx>-1)tasks[c].splice(idx,1);});renderAll();renderTodoTasks();scheduleSave();}
+async function createTodoTask(){const title=document.getElementById('new-title').value.trim();const imp=document.getElementById('new-imp').value;if(!title||!token)return;const listId=document.getElementById('lsel').value;try{const res=await fetch(`https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({title,importance:imp})});if(!res.ok)throw new Error(res.status);document.getElementById('new-title').value='';const ok=document.getElementById('create-ok');ok.style.display='block';setTimeout(()=>ok.style.display='none',2500);await loadTasks();}catch(e){handleApiErr(e);}}
+function disconnect(){token=null;tokenExpiry=null;if(timerInt)clearInterval(timerInt);todoItems=[];doneInTodo=0;document.getElementById('td-setup').style.display='block';document.getElementById('td-main').style.display='none';document.getElementById('tok').value='';document.getElementById('cbtn').disabled=false;document.getElementById('cbtn').textContent='Conectar con Microsoft To Do';document.getElementById('ms-tab').textContent='⟳ To Do';hideErr();}
+function handleApiErr(e,wrap){const m=String(e.message||'');if(m.includes('401')||m.includes('403')){disconnect();showErr('Sesión expirada. Obtén un token nuevo.');}else if(wrap)wrap.innerHTML=`<div class="empty" style="color:#f09595">${m}</div>`;else showToast('Error: '+m);}
+function showErr(m){const e=document.getElementById('err');if(e){e.textContent=m;e.style.display='block';}}
+function hideErr(){const e=document.getElementById('err');if(e)e.style.display='none';}
+function showToast(m){const t=document.getElementById('toast');t.textContent='✓ '+m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2800);}
+
+// ═══════════════════════════════════════════════════════════
+// NAV & UTILS
+// ═══════════════════════════════════════════════════════════
+function sw(name,el){document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));el.classList.add('on');document.getElementById('p-'+name).classList.add('on');}
+function fmtDate(dt){try{return new Date(dt).toLocaleDateString('es-ES',{day:'2-digit',month:'short'});}catch{return '';}}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+function init(){
+  const d=new Date();
+  const dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  document.getElementById('fecha').textContent=dias[d.getDay()]+', '+d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear();
+
+  loadFromStorage();
+
+  // Migrate/ensure habit structure
+  if(!habs.daily||!Array.isArray(habs.daily)||!habs.daily.length)habs.daily=DEFAULT_DAILY.map(t=>({text:t,done:false}));
+  if(!habs.weekly||!Array.isArray(habs.weekly)||!habs.weekly.length)habs.weekly=DEFAULT_WEEKLY.map(t=>({text:t,done:false}));
+  if(!habs.monthly||!Array.isArray(habs.monthly)||!habs.monthly.length)habs.monthly=DEFAULT_MONTHLY.map(t=>({text:t,done:false}));
+  if(habs.daily.length&&typeof habs.daily[0]==='boolean')habs.daily=DEFAULT_DAILY.map((t,i)=>({text:t,done:!!habs.daily[i]}));
+  if(!months||months.length!==12)months=Array(12).fill(false);
+  if(!years)years={};
+  if(!affirmations||affirmations.length!==5)affirmations=Array(5).fill('');
+  if(!plan)plan={arc:'',texto:'',fecha:''};
+  if(areas.length&&typeof areas[0]==='string')areas=areas.map(t=>({text:t,score:''}));
+
+  // Mark today in week streak
+  const wd=d.getDay()===0?6:d.getDay()-1;if(!days[wd])days[wd]=true;
+
+  restoreMetaFields();
+  renderAreas();
+  renderAffirmations();
+  renderPlanFields();
+  renderAllHabs();
+  renderWeek();
+  renderMonths();
+  renderYears();
+  renderAll();
+  renderGuide();
+  document.getElementById('dcnt').textContent=days.filter(Boolean).length;
+}
+init();
+</script>
+</body>
+</html>
