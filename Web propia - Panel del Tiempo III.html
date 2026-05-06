@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<!-- PWA: manifest e iconos -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de Tiempo — Brian Tracy</title>
+
+<!-- PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#141417">
 <meta name="mobile-web-app-capable" content="yes">
@@ -10,18 +13,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Panel Tracy">
 
-<!-- PWA: registro del Service Worker -->
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<!-- Service Worker -->
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('[SW] Registrado:', reg.scope))
-        .catch(err => console.log('[SW] Error:', err));
-    });
-  }
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .then(r=>console.log('[SW] Registrado:',r.scope))
+      .catch(e=>console.log('[SW] Error:',e));
+  });
+}
 </script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel de Tiempo — Brian Tracy</title>
 <style>
 :root{--bg0:#0d0d0f;--bg1:#141417;--bg2:#1c1c21;--bg3:#252529;--br:#2e2e34;--br2:#3a3a42;--tx:#e8e8ec;--tx2:#9898a8;--tx3:#5a5a6a;--ac2:#26215c;--ac3:#afa9ec;--rad:10px;--rad2:8px}
 *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
@@ -227,6 +232,10 @@ body{padding:0}
   </div>
   <div style="display:flex;align-items:center;gap:11px">
     <div class="save-ind" id="save-ind"><div style="width:7px;height:7px;border-radius:50%;background:#50c070"></div> Guardado</div>
+    <div id="sync-ind" style="font-size:13px;display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;background:#1c1c21;border:1px solid #3a3a42">
+      <div id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:#5a5a6a"></div>
+      <span id="sync-txt" style="color:#5a5a6a">Offline</span>
+    </div>
     <div class="ring-wrap">
       <svg width="56" height="56" viewBox="0 0 56 56">
         <circle cx="28" cy="28" r="21" fill="none" stroke="#2e2e34" stroke-width="5"/>
@@ -569,35 +578,92 @@ let saveTimer=null,editingKey=null,editingHab=null;
 let dragSrcCat=null,dragSrcIdx=null,dragHabType=null,dragHabIdx=null;
 
 // ═══════════════════════════════════════════════════════════
-// STORAGE
+// FIREBASE + STORAGE
 // ═══════════════════════════════════════════════════════════
-function persist(){
+const FB_CONFIG={
+  apiKey:"AIzaSyBYUS0mPU0z9pnP4nl9HbEM73FsiykTxmg",
+  authDomain:"paneltracy-ba32a.firebaseapp.com",
+  projectId:"paneltracy-ba32a",
+  storageBucket:"paneltracy-ba32a.firebasestorage.app",
+  messagingSenderId:"624749436316",
+  appId:"1:624749436316:web:60b04d8eee179451e87c59"
+};
+firebase.initializeApp(FB_CONFIG);
+const db=firebase.firestore();
+const DOC=db.collection('panel').doc('datos');
+let remoteUpdate=false; // flag to avoid save loop on remote updates
+
+function setSyncStatus(estado){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-txt');
+  if(!dot||!txt)return;
+  if(estado==='ok'){dot.style.background='#50c070';txt.style.color='#50c070';txt.textContent='Sincronizado';}
+  else if(estado==='saving'){dot.style.background='#f0b040';txt.style.color='#f0b040';txt.textContent='Guardando...';}
+  else{dot.style.background='#5a5a6a';txt.style.color='#5a5a6a';txt.textContent='Offline';}
+}
+
+async function persist(){
   const p={tasks,habs,days,months,years,metas,areas,affirmations,plan,addedIds:[...addedIds],savedAt:new Date().toISOString()};
+  // 1. Guardar en localStorage (caché offline)
+  try{localStorage.setItem(LS_KEY,JSON.stringify(p));}catch(e){}
+  // 2. Guardar en Firestore (sincronización en la nube)
+  setSyncStatus('saving');
   try{
-    localStorage.setItem(LS_KEY,JSON.stringify(p));
+    await DOC.set(p);
+    setSyncStatus('ok');
     const ind=document.getElementById('save-ind');ind.style.display='flex';
     clearTimeout(ind._t);ind._t=setTimeout(()=>ind.style.display='none',1800);
     const d=new Date();document.getElementById('last-saved').textContent='· '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
-  }catch(e){}
+  }catch(e){setSyncStatus('offline');}
 }
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(persist,700);}
 
+function applyData(d){
+  if(d.tasks)tasks=d.tasks;
+  if(d.habs)habs=d.habs;
+  if(d.days)days=d.days;
+  if(d.months)months=d.months;
+  if(d.years)years=d.years;
+  if(d.metas)metas=d.metas;
+  if(d.areas)areas=d.areas;
+  if(d.affirmations)affirmations=d.affirmations;
+  if(d.plan)plan=d.plan;
+  if(d.addedIds)addedIds=new Set(d.addedIds);
+  if(d.savedAt){const dt=new Date(d.savedAt);document.getElementById('last-saved').textContent='· '+dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0');}
+}
+
 function loadFromStorage(){
+  // Carga desde localStorage como punto de partida rápido
   try{
     const raw=localStorage.getItem(LS_KEY);if(!raw)return;
-    const d=JSON.parse(raw);
-    if(d.tasks)tasks=d.tasks;
-    if(d.habs)habs=d.habs;
-    if(d.days)days=d.days;
-    if(d.months)months=d.months;
-    if(d.years)years=d.years;
-    if(d.metas)metas=d.metas;
-    if(d.areas)areas=d.areas;
-    if(d.affirmations)affirmations=d.affirmations;
-    if(d.plan)plan=d.plan;
-    if(d.addedIds)addedIds=new Set(d.addedIds);
-    if(d.savedAt){const dt=new Date(d.savedAt);document.getElementById('last-saved').textContent='· '+dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0');}
+    applyData(JSON.parse(raw));
   }catch(e){}
+}
+
+function startFirebaseSync(){
+  // Escucha cambios en tiempo real desde Firestore
+  DOC.onSnapshot(snap=>{
+    if(!snap.exists)return;
+    const d=snap.data();
+    // Evitar bucle: solo aplicar si el cambio viene de otro dispositivo
+    // Comparamos el timestamp guardado con el local
+    const remoteTime=d.savedAt||'';
+    const localRaw=localStorage.getItem(LS_KEY);
+    const localTime=localRaw?JSON.parse(localRaw).savedAt||'':'';
+    if(remoteTime===localTime)return; // mismo dispositivo, ignorar
+    remoteUpdate=true;
+    applyData(d);
+    // Actualizar también localStorage con los datos remotos
+    try{localStorage.setItem(LS_KEY,JSON.stringify(d));}catch(e){}
+    // Re-renderizar todo con los datos nuevos
+    migrateData();
+    restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
+    renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();
+    document.getElementById('dcnt').textContent=days.filter(Boolean).length;
+    setSyncStatus('ok');
+    showToast('Panel actualizado desde otro dispositivo');
+    remoteUpdate=false;
+  },err=>{setSyncStatus('offline');console.warn('Firebase sync error:',err);});
 }
 
 function clearAll(){
@@ -608,6 +674,7 @@ function clearAll(){
   metas={vida:'',carrera:'',familia:'',un_anyo:'',tres_meses:'',mes_actual:''};
   areas=Array(5).fill({text:'',score:''});affirmations=Array(5).fill('');plan={arc:'',texto:'',fecha:''};addedIds=new Set();
   localStorage.removeItem(LS_KEY);
+  try{DOC.delete();}catch(e){}
   restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
   renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();
   showToast('Todos los datos han sido borrados');
@@ -979,15 +1046,7 @@ function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-function init(){
-  const d=new Date();
-  const dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  document.getElementById('fecha').textContent=dias[d.getDay()]+', '+d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear();
-
-  loadFromStorage();
-
-  // Migrate/ensure habit structure
+function migrateData(){
   if(!habs.daily||!Array.isArray(habs.daily)||!habs.daily.length)habs.daily=DEFAULT_DAILY.map(t=>({text:t,done:false}));
   if(!habs.weekly||!Array.isArray(habs.weekly)||!habs.weekly.length)habs.weekly=DEFAULT_WEEKLY.map(t=>({text:t,done:false}));
   if(!habs.monthly||!Array.isArray(habs.monthly)||!habs.monthly.length)habs.monthly=DEFAULT_MONTHLY.map(t=>({text:t,done:false}));
@@ -997,6 +1056,16 @@ function init(){
   if(!affirmations||affirmations.length!==5)affirmations=Array(5).fill('');
   if(!plan)plan={arc:'',texto:'',fecha:''};
   if(areas.length&&typeof areas[0]==='string')areas=areas.map(t=>({text:t,score:''}));
+}
+
+function init(){
+  const d=new Date();
+  const dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  document.getElementById('fecha').textContent=dias[d.getDay()]+', '+d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear();
+
+  loadFromStorage();
+  migrateData();
 
   // Mark today in week streak
   const wd=d.getDay()===0?6:d.getDay()-1;if(!days[wd])days[wd]=true;
@@ -1012,6 +1081,9 @@ function init(){
   renderAll();
   renderGuide();
   document.getElementById('dcnt').textContent=days.filter(Boolean).length;
+
+  // Iniciar sincronización en tiempo real con Firebase
+  startFirebaseSync();
 }
 init();
 </script>
