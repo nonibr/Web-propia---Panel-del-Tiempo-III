@@ -5,7 +5,7 @@ const CACHE_NAME = 'panel-tracy-v1';
 
 // Archivos que se guardan en caché para uso offline
 const ARCHIVOS_CACHE = [
-  './Web propia - Panel del Tiempo III.html',
+  './Web propia - Panel del Tiempo IV.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
