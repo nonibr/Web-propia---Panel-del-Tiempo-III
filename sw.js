@@ -1,7 +1,7 @@
 // ─── Service Worker — Panel Tracy ───────────────────────
 // Versión de caché: cambia este número cada vez que
 // actualices el panel para forzar la recarga en el móvil.
-const CACHE_NAME = 'panel-tracy-v1';
+const CACHE_NAME = 'panel-tracy-v2';
 
 // Archivos que se guardan en caché para uso offline
 const ARCHIVOS_CACHE = [
