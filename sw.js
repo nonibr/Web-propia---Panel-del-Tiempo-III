@@ -5,7 +5,7 @@ const CACHE_NAME = 'panel-tracy-v2';
 
 // Archivos que se guardan en caché para uso offline
 const ARCHIVOS_CACHE = [
-  './Web propia - Panel del Tiempo IV.html',
+  './Web propia - Panel del Tiempo VI.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -54,7 +54,7 @@ self.addEventListener('fetch', event => {
         return cached;
       }
       return fetch(event.request).catch(() => {
-        return caches.match('./Web propia - Panel del Tiempo III.html');
+        return caches.match('./Web propia - Panel del Tiempo VI.html');
       });
     })
   );
