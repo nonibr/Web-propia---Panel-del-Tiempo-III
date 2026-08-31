@@ -1,11 +1,11 @@
 // ─── Service Worker — Panel Tracy ───────────────────────
 // Versión de caché: cambia este número cada vez que
 // actualices el panel para forzar la recarga en el móvil.
-const CACHE_NAME = 'panel-tracy-v4';
+const CACHE_NAME = 'panel-tracy-v6';
 
 // Archivos que se guardan en caché para uso offline
 const ARCHIVOS_CACHE = [
-  './Web propia - Panel del Tiempo VI.html',
+  './Web propia - Panel del Tiempo XI.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -54,7 +54,7 @@ self.addEventListener('fetch', event => {
         return cached;
       }
       return fetch(event.request).catch(() => {
-        return caches.match('./Web propia - Panel del Tiempo VI.html');
+        return caches.match('./Web propia - Panel del Tiempo XI.html');
       });
     })
   );
