@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0051)file:///C:/Users/nonib/Downloads/panel_tracy_2.html -->
+<!-- saved from url=(0051)file:///C:/Users/nonib/Downloads/panel_tracy_4.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -466,7 +466,7 @@ body{padding:0}
     <div class="topbar-sub" id="fecha">Martes, 1 de septiembre de 2026</div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <div class="save-ind" id="save-ind" style="display: flex;"><div style="width:7px;height:7px;border-radius:50%;background:#50c070"></div> Guardado</div>
+    <div class="save-ind" id="save-ind" style="display: none;"><div style="width:7px;height:7px;border-radius:50%;background:#50c070"></div> Guardado</div>
     <div class="sync-pill" id="sync-pill">
       <div id="sync-dot" style="width: 7px; height: 7px; border-radius: 50%; background: rgb(80, 192, 112);"></div>
       <span id="sync-txt" style="font-size: 12px; color: rgb(80, 192, 112);">Sincronizado</span>
@@ -506,7 +506,7 @@ body{padding:0}
   <div class="storage-bar">
     <div class="sdot-green"></div>
     <strong>Guardado automático</strong> — sincronizado en la nube
-    <span class="last-saved" id="last-saved">· 1:36</span>
+    <span class="last-saved" id="last-saved">· 2:21</span>
     <button class="select-btn" id="select-mode-btn" onclick="toggleSelectMode()">☑ Seleccionar tareas</button>
     <button class="clear-btn" onclick="clearAll()">Borrar todo</button>
   </div>
@@ -529,7 +529,7 @@ body{padding:0}
   </div>
   <div class="search-results" id="search-results"></div>
   <div class="hint"><strong>Método ABCDE:</strong> <strong style="color:#f07050">A</strong> debe hacerse · <strong style="color:#f0b040">B</strong> debería · <strong style="color:#50c070">C</strong> deseable · <strong style="color:#5090f0">D</strong> delegar · <strong style="color:#8888a0">E</strong> eliminar &nbsp;·&nbsp; <strong style="color:#afa9ec">⠿</strong> reordenar · <strong style="color:#afa9ec">✎</strong> editar · <strong style="color:#afa9ec">📝</strong> notas · <strong style="color:#afa9ec">⏱</strong> pomodoro</div>
-  <div class="toast" id="toast" style="display: block;">✓ Panel actualizado desde otro dispositivo</div>
+  <div class="toast" id="toast"></div>
   <div class="cols">
     <div>
       <div class="card">
@@ -567,7 +567,7 @@ body{padding:0}
     <input type="checkbox" class="ck" onchange="tog(&#39;a&#39;,1)" style="accent-color:#f07050">
     <div class="task-body">
       <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-        <div class="ttx" style="flex:1;min-width:0;color:#afa9ec" onclick="tog(&#39;a&#39;,1)">Vicente Durán y Carmen Mari: pendiente de gestionar la liquidez de c/c tras cancelar su hipoteca</div>
+        <div class="ttx" style="flex:1;min-width:0;color:#afa9ec" onclick="tog(&#39;a&#39;,1)">Vicente Durán y Carmen Mari: pendiente de gestionar la liquidez de c/c tras cancelar su hipoteca 5</div>
         <span class="due-over" style="font-size:11px;padding:2px 7px;border-radius:99px;display:inline-flex;align-items:center;gap:3px;flex-shrink:0">📅 Vencida</span>
         
       </div>
@@ -6275,12 +6275,14 @@ async function persist(){
   _lastSavedAt=now; // registrar el timestamp de ESTE guardado para ignorarlo en onSnapshot
   // Guardar en Firebase si está disponible
   if(!firebaseOk||!DOC){setSyncStatus('offline');showLocalSaved();return;}
-  setSyncStatus('saving');
+  // Mostrar 'guardando' solo si tarda más de 300ms
+  const savingTimer=setTimeout(()=>setSyncStatus('saving'),300);
   try{
     await DOC.set(p);
+    clearTimeout(savingTimer);
     setSyncStatus('ok');
     showLocalSaved();
-  }catch(e){setSyncStatus('offline');showLocalSaved();}
+  }catch(e){clearTimeout(savingTimer);setSyncStatus('offline');showLocalSaved();}
 }
 function showLocalSaved(){
   const ind=document.getElementById('save-ind');ind.style.display='flex';
@@ -6318,14 +6320,13 @@ function startFirebaseSync(){
     if(d.deviceId===DEVICE_ID)return;
     // Ignorar si el timestamp remoto coincide con nuestro último guardado
     if(d.savedAt&&d.savedAt===_lastSavedAt)return;
-    // Es un cambio real de otro dispositivo — aplicar
+    // Es un cambio real de otro dispositivo — aplicar silenciosamente
     applyData(d);
     try{localStorage.setItem(LS_KEY,JSON.stringify(d));}catch(e){}
     migrateData();
     restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
     renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();renderHistory();renderP21All();
-    setSyncStatus('ok');
-    showToast('Panel actualizado desde otro dispositivo');
+    // NO mostrar indicador de sincronización al recibir — solo en el dispositivo que guarda
   },err=>{setSyncStatus('offline');});
 }
 
