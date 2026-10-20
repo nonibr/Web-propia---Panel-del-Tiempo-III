@@ -978,7 +978,8 @@ const DEVICE_ID=(()=>{
   }
 })();
 
-let _isSaving=false; // flag para ignorar onSnapshot mientras guardamos
+let _isSaving=false;
+let _lastKnownSavedAt=''; // timestamp del último dato que conocemos
 
 try{
   const FB_CFG={
@@ -1020,6 +1021,7 @@ async function persist(){
   try{
     await DOC.set(p);
     clearTimeout(savingTimer);
+    _lastKnownSavedAt=now; // marcar este timestamp como conocido
     setSyncStatus('ok');
     showLocalSaved();
   }catch(e){
@@ -1027,7 +1029,6 @@ async function persist(){
     setSyncStatus('offline');
     showLocalSaved();
   }finally{
-    // Esperar un poco antes de volver a escuchar, para que onSnapshot no capture nuestro propio guardado
     setTimeout(()=>{_isSaving=false;},2000);
   }
 }
@@ -1055,19 +1056,45 @@ function applyData(d){
 }
 
 function loadFromStorage(){
-  try{const raw=localStorage.getItem(LS_KEY);if(!raw)return;applyData(JSON.parse(raw));}catch(e){}
+  try{
+    const raw=localStorage.getItem(LS_KEY);if(!raw)return;
+    const d=JSON.parse(raw);
+    applyData(d);
+    if(d.savedAt)_lastKnownSavedAt=d.savedAt; // marcar como conocido
+  }catch(e){}
 }
 
 function startFirebaseSync(){
   if(!firebaseOk||!DOC){setSyncStatus('offline');return;}
+
+  // Carga inicial forzada: obtener los datos más recientes de Firebase al arrancar
+  DOC.get().then(snap=>{
+    if(!snap.exists)return;
+    const d=snap.data();
+    const remoteSavedAt=d.savedAt||'';
+    if(remoteSavedAt&&remoteSavedAt>_lastKnownSavedAt){
+      _lastKnownSavedAt=remoteSavedAt;
+      applyData(d);
+      try{localStorage.setItem(LS_KEY,JSON.stringify(d));}catch(e){}
+      migrateData();
+      restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
+      renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();renderHistory();renderP21All();
+      setSyncStatus('ok');
+    }
+  }).catch(()=>{});
+
+  // Escucha continua de cambios en tiempo real
   DOC.onSnapshot(snap=>{
     if(!snap.exists)return;
-    // Ignorar si estamos guardando nosotros mismos
     if(_isSaving)return;
     const d=snap.data();
-    // Ignorar si el cambio viene de este mismo dispositivo
+    const remoteSavedAt=d.savedAt||'';
+    // Ignorar si es el mismo dato o más antiguo que lo que ya tenemos
+    if(remoteSavedAt&&remoteSavedAt<=_lastKnownSavedAt)return;
+    // Ignorar si viene de este mismo dispositivo
     if(d.deviceId===DEVICE_ID)return;
-    // Cambio real de otro dispositivo — aplicar silenciosamente
+    // Es un dato más reciente de otro dispositivo — aplicar
+    _lastKnownSavedAt=remoteSavedAt;
     applyData(d);
     try{localStorage.setItem(LS_KEY,JSON.stringify(d));}catch(e){}
     migrateData();
