@@ -997,8 +997,10 @@ let _queued=false;        // hubo un guardado mientras se estaba guardando
 let _dirty=false;         // hay cambios locales aún no confirmados en la nube
 let _syncReady=false;     // true solo cuando ya se ha leído la nube al arrancar
 let _forceWrite=false;    // permite sobrescribir la nube (importar / restaurar)
+let _applyingRemote=false; // true mientras se pintan datos recibidos de la nube (no deben provocar guardados)
+let _lastSyncedSig='';    // huella del último contenido que sabemos que está igual en la nube
 let _lastKnownSavedAt=''; // timestamp del último dato que conocemos
-const PANEL_VERSION='XV · protección de datos 1';
+const PANEL_VERSION='XV · protección de datos 2';
 const BK_KEY='tracy_backups';
 
 try{
@@ -1034,9 +1036,15 @@ function buildPayload(){
   CATS.forEach(c=>{cleanTasks[c]=tasks[c].map(t=>{const{_notesOpen,...rest}=t;return rest;});});
   return {tasks:cleanTasks,habs,days,months,years,metas,areas,affirmations,plan,plan21,history,addedIds:[...addedIds],savedAt:new Date().toISOString(),deviceId:DEVICE_ID};
 }
-function sigOf(d){ // huella del contenido, sin fecha ni dispositivo
+function stableStr(v){
+  if(v===null||typeof v!=='object')return JSON.stringify(v===undefined?null:v);
+  if(Array.isArray(v))return '['+v.map(stableStr).join(',')+']';
+  return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stableStr(v[k])).join(',')+'}';
+}
+function sigOf(d){ // huella del contenido, sin fecha ni dispositivo y con claves ordenadas
   try{
-    const s=JSON.stringify({...d,savedAt:0,deviceId:0,exportedAt:0,version:0,backupOf:0});
+    const {savedAt,deviceId,exportedAt,version,backupOf,...rest}=d;
+    const s=stableStr(rest);
     let h=5381;for(let i=0;i<s.length;i++){h=((h<<5)+h+s.charCodeAt(i))|0;}
     return s.length+':'+h;
   }catch(e){return '';}
@@ -1074,6 +1082,9 @@ async function persist(){
     const day=now.slice(0,10);
     if(localStorage.getItem('tracy_bk_day')!==day){backupLocal('copia diaria',p);localStorage.setItem('tracy_bk_day',day);}
   }catch(e){}
+  // Si el contenido es idéntico a lo que ya está en la nube, no hay nada que sincronizar
+  const sig=sigOf(p);
+  if(!_forceWrite&&sig===_lastSyncedSig){_dirty=false;if(_syncReady)setSyncStatus('ok');return;}
   if(!firebaseOk||!DOC){setSyncStatus('offline');showLocalSaved();return;}
   // 3) No escribir en la nube hasta haber leído qué hay allí (evita pisar datos nuevos con datos viejos)
   if(!_syncReady){setSyncStatus('offline');showLocalSaved();return;}
@@ -1113,6 +1124,7 @@ async function persist(){
       }
     }else{
       _lastKnownSavedAt=now;
+      _lastSyncedSig=sig;
       _dirty=false;
       _forceWrite=false;
       setSyncStatus('ok');
@@ -1132,7 +1144,7 @@ function showLocalSaved(){
   clearTimeout(ind._t);ind._t=setTimeout(()=>ind.style.display='none',1800);
   const d=new Date();document.getElementById('last-saved').textContent='· '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
 }
-function scheduleSave(){_dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(persist,700);}
+function scheduleSave(){if(_applyingRemote)return;_dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(persist,700);}
 
 // Copia diaria en la nube (documentos panel/backup-AAAA-MM-DD, se conservan ~35 días)
 function cloudDailyBackup(p){
@@ -1180,11 +1192,16 @@ function applyRemote(d,reason,snapshotLocal){
     if(sigOf(cur)!==sigOf(d))backupLocal('antes de cargar la nube ('+reason+')',cur);
   }
   if((d.savedAt||'')>_lastKnownSavedAt)_lastKnownSavedAt=d.savedAt;
-  applyData(d);
-  try{localStorage.setItem(LS_KEY,JSON.stringify(d));}catch(e){}
-  migrateData();
-  restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
-  renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();renderHistory();renderP21All();
+  _applyingRemote=true; // pintar datos de la nube NUNCA debe provocar un guardado
+  try{
+    applyData(d);
+    try{localStorage.setItem(LS_KEY,JSON.stringify(d));}catch(e){}
+    migrateData();
+    restoreMetaFields();renderAreas();renderAffirmations();renderPlanFields();
+    renderAllHabs();renderWeek();renderMonths();renderYears();renderAll();renderHistory();renderP21All();
+  }finally{_applyingRemote=false;}
+  clearTimeout(saveTimer);
+  _lastSyncedSig=sigOf(d);
   _dirty=false;
 }
 
@@ -2325,7 +2342,7 @@ function updP21Team(i,field,val){if(!plan21.team[i])return;plan21.team[i][field]
 function addP21TeamRow(){plan21.team.push({name:'',arc:'',w1:'',w2:'',w3:''});renderP21Team();scheduleP21Save();}
 function delP21TeamRow(i){plan21.team.splice(i,1);renderP21Team();scheduleP21Save();}
 
-function renderP21Metrics(){
+function renderP21Metrics(silent){
   const ids=[['contactos','p21-m-contactos-a','p21-m-contactos-b','p21-d-contactos'],['pct','p21-m-pct-a','p21-m-pct-b','p21-d-pct'],['aum','p21-m-aum-a','p21-m-aum-b','p21-d-aum']];
   if(!plan21.metrics)plan21.metrics={};
   ids.forEach(([key,aId,bId,dId])=>{
@@ -2339,11 +2356,11 @@ function renderP21Metrics(){
     dEl.textContent=(diff>0?'+':'')+pct+'%';
     dEl.className='p21-metric-delta '+(diff>0?'up':diff<0?'down':'flat');
   });
-  scheduleP21Save();
+  if(!silent)scheduleP21Save(); // solo cuando el usuario escribe, nunca al pintar
 }
 
 function renderP21All(){
-  renderP21Progress();renderP21Log();renderP21Obstacle();renderP21Team();renderP21Metrics();
+  renderP21Progress();renderP21Log();renderP21Obstacle();renderP21Team();renderP21Metrics(true);
   const obsEl=document.getElementById('p21-obstacle');
   if(obsEl&&!obsEl._wired){obsEl.addEventListener('input',()=>{plan21.obstacle=obsEl.value;});obsEl._wired=true;}
 }
